@@ -18,26 +18,6 @@ const C = {
 };
 
 // ── Accordion wrapper for mobile ──
-const Accordion = ({ title, badge, defaultOpen = false, children, accentColor }) => {
-  const [open, setOpen] = useState(defaultOpen);
-  return (
-    <div style={{ borderRadius: 10, border: `1px solid ${C.border}`, overflow: 'hidden', marginBottom: '0.6rem' }}>
-      <button onClick={() => setOpen(o => !o)} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.9rem 1rem', background: open ? 'rgba(74,144,217,0.12)' : 'rgba(74,144,217,0.06)', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <span style={{ fontFamily: '"Crimson Pro", serif', fontSize: '0.8rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '2px', color: accentColor || C.accentLight }}>{title}</span>
-          {badge !== undefined && <span style={{ fontSize: '0.65rem', color: C.textFaint, fontWeight: 'normal' }}>{badge}</span>}
-        </div>
-        <span style={{ color: C.accentLight, fontSize: '0.7rem', transition: 'transform 0.2s', display: 'inline-block', transform: open ? 'rotate(0deg)' : 'rotate(-90deg)' }}>▼</span>
-      </button>
-      {open && (
-        <div style={{ padding: '0.8rem 1rem', background: C.cardBg }}>
-          {children}
-        </div>
-      )}
-    </div>
-  );
-};
-
 const LifeDashboard = () => {
   const surgeryDate = new Date('2025-11-04');
   const dashboardStartDate = new Date('2026-01-28');
@@ -510,8 +490,11 @@ const LifeDashboard = () => {
 
   const renderMobile = () => {
     const allDone = Object.values(habits).every(h => h.today);
+    // eslint-disable-next-line no-unused-vars
     const doneCount = Object.values(habits).filter(h => h.today).length;
+    // eslint-disable-next-line no-unused-vars
     const totalTasks = Object.values(weeklyTasks).flat().length;
+    // eslint-disable-next-line no-unused-vars
     const doneTasks = Object.values(weeklyTasks).flat().filter(t => t.done).length;
     const totalStudy = [...studyApproach, ...studyPathology, ...studyRhoton].length;
     const doneStudy = [...studyApproach, ...studyPathology, ...studyRhoton].filter(i => i.done).length;
