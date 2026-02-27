@@ -114,36 +114,70 @@ const LifeDashboard = () => {
     { id: 'r14', text: 'The nose for neurosurgeons', done: false },
   ]);
 
-  // ── Load ──
+  const [syncStatus, setSyncStatus] = useState('idle'); // idle | saving | saved | error
+
+  // ── Apply loaded data (shared between cloud load and import) ──
+  const applyData = (d) => {
+    if (d.habits) { const m = {}; Object.keys(d.habits).forEach(k => { m[k] = { ...d.habits[k], totalCompleted: d.habits[k].totalCompleted || 0 }; }); if (!m.suturing) m.suturing = { streak: 0, today: false, totalCompleted: 0 }; setHabits(m); }
+    if (d.weeklyTasks) { const m = {}; Object.keys(d.weeklyTasks).forEach(day => { m[day] = d.weeklyTasks[day].map(t => ({ ...t, priority: t.priority || false })); }); setWeeklyTasks(m); }
+    if (d.monthlyGoals) setMonthlyGoals(d.monthlyGoals.map(g => ({ ...g, dateAdded: g.dateAdded || Date.now() })));
+    if (d.researchProjects) setResearchProjects(d.researchProjects.map(p => ({ id: p.id, title: p.title, done: p.done || false })));
+    if (d.researchHistory) setResearchHistory(d.researchHistory);
+    if (d.brainstormEntries) setBrainstormEntries(d.brainstormEntries);
+    if (d.brainstormHistory) setBrainstormHistory(d.brainstormHistory);
+    if (d.articleHistory) setArticleHistory(d.articleHistory);
+    if (d.lastArticleDate) setLastArticleDate(d.lastArticleDate);
+    if (d.dailyArticle) setDailyArticle(d.dailyArticle);
+    if (d.lastWeeklyReset) setLastWeeklyReset(d.lastWeeklyReset);
+    if (d.lastMonthlyReset) setLastMonthlyReset(d.lastMonthlyReset);
+    if (d.lastHabitDate) setLastHabitDate(d.lastHabitDate);
+    if (d.studyApproach) setStudyApproach(d.studyApproach);
+    if (d.studyPathology) setStudyPathology(d.studyPathology);
+    if (d.studyRhoton) setStudyRhoton(d.studyRhoton);
+  };
+
+  // ── Load: cloud first, localStorage fallback ──
   useEffect(() => {
-    const stored = localStorage.getItem('lifeDashboardData');
-    if (stored) {
+    const load = async () => {
+      // Try cloud storage first
       try {
-        const d = JSON.parse(stored);
-        if (d.habits) { const m = {}; Object.keys(d.habits).forEach(k => { m[k] = { ...d.habits[k], totalCompleted: d.habits[k].totalCompleted || 0 }; }); if (!m.suturing) m.suturing = { streak: 0, today: false, totalCompleted: 0 }; setHabits(m); }
-        if (d.weeklyTasks) { const m = {}; Object.keys(d.weeklyTasks).forEach(day => { m[day] = d.weeklyTasks[day].map(t => ({ ...t, priority: t.priority || false })); }); setWeeklyTasks(m); }
-        if (d.monthlyGoals) setMonthlyGoals(d.monthlyGoals.map(g => ({ ...g, dateAdded: g.dateAdded || Date.now() })));
-        if (d.researchProjects) setResearchProjects(d.researchProjects.map(p => ({ id: p.id, title: p.title, done: p.done || false })));
-        if (d.researchHistory) setResearchHistory(d.researchHistory);
-        if (d.brainstormEntries) setBrainstormEntries(d.brainstormEntries);
-        if (d.brainstormHistory) setBrainstormHistory(d.brainstormHistory);
-        if (d.articleHistory) setArticleHistory(d.articleHistory);
-        if (d.lastArticleDate) setLastArticleDate(d.lastArticleDate);
-        if (d.dailyArticle) setDailyArticle(d.dailyArticle);
-        if (d.lastWeeklyReset) setLastWeeklyReset(d.lastWeeklyReset);
-        if (d.lastMonthlyReset) setLastMonthlyReset(d.lastMonthlyReset);
-        if (d.lastHabitDate) setLastHabitDate(d.lastHabitDate);
-        if (d.studyApproach) setStudyApproach(d.studyApproach);
-        if (d.studyPathology) setStudyPathology(d.studyPathology);
-        if (d.studyRhoton) setStudyRhoton(d.studyRhoton);
-      } catch (e) { console.error(e); }
-    }
+        const result = await window.storage.get('dashboard-data');
+        if (result && result.value) {
+          const d = JSON.parse(result.value);
+          applyData(d);
+          localStorage.setItem('lifeDashboardData', result.value); // keep local in sync
+          return;
+        }
+      } catch (e) { /* storage not available, fall through */ }
+      // Fallback to localStorage
+      const stored = localStorage.getItem('lifeDashboardData');
+      if (stored) {
+        try { applyData(JSON.parse(stored)); } catch (e) { console.error(e); }
+      }
+    };
+    load();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Save ──
+  // ── Save: write to both cloud and localStorage ──
+  const saveTimeoutRef = React.useRef(null);
   useEffect(() => {
-    localStorage.setItem('lifeDashboardData', JSON.stringify({ habits, weeklyTasks, monthlyGoals, researchProjects, researchHistory, brainstormEntries, brainstormHistory, articleHistory, lastArticleDate, dailyArticle, lastWeeklyReset, lastMonthlyReset, lastHabitDate, studyApproach, studyPathology, studyRhoton }));
+    const data = JSON.stringify({ habits, weeklyTasks, monthlyGoals, researchProjects, researchHistory, brainstormEntries, brainstormHistory, articleHistory, lastArticleDate, dailyArticle, lastWeeklyReset, lastMonthlyReset, lastHabitDate, studyApproach, studyPathology, studyRhoton });
+    // Always save to localStorage immediately
+    localStorage.setItem('lifeDashboardData', data);
+    // Debounce cloud saves to avoid hammering on rapid changes
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    setSyncStatus('saving');
+    saveTimeoutRef.current = setTimeout(async () => {
+      try {
+        await window.storage.set('dashboard-data', data);
+        setSyncStatus('saved');
+        setTimeout(() => setSyncStatus('idle'), 2000);
+      } catch (e) {
+        setSyncStatus('error');
+        setTimeout(() => setSyncStatus('idle'), 3000);
+      }
+    }, 1000);
   }, [habits, weeklyTasks, monthlyGoals, researchProjects, researchHistory, brainstormEntries, brainstormHistory, articleHistory, lastArticleDate, dailyArticle, lastWeeklyReset, lastMonthlyReset, lastHabitDate, studyApproach, studyPathology, studyRhoton]);
 
   const contentDatabase = [
@@ -247,23 +281,8 @@ const LifeDashboard = () => {
       reader.onload = ev => {
         try {
           const d = JSON.parse(ev.target.result);
-          if (d.habits) setHabits(d.habits);
-          if (d.weeklyTasks) setWeeklyTasks(d.weeklyTasks);
-          if (d.monthlyGoals) setMonthlyGoals(d.monthlyGoals);
-          if (d.researchProjects) setResearchProjects(d.researchProjects.map(p => ({ id: p.id, title: p.title, done: p.done || false })));
-          if (d.researchHistory) setResearchHistory(d.researchHistory);
-          if (d.brainstormEntries) setBrainstormEntries(d.brainstormEntries);
-          if (d.brainstormHistory) setBrainstormHistory(d.brainstormHistory);
-          if (d.articleHistory) setArticleHistory(d.articleHistory);
-          if (d.lastArticleDate) setLastArticleDate(d.lastArticleDate);
-          if (d.dailyArticle) setDailyArticle(d.dailyArticle);
-          if (d.lastWeeklyReset) setLastWeeklyReset(d.lastWeeklyReset);
-          if (d.lastMonthlyReset) setLastMonthlyReset(d.lastMonthlyReset);
-          if (d.lastHabitDate) setLastHabitDate(d.lastHabitDate);
-          if (d.studyApproach) setStudyApproach(d.studyApproach);
-          if (d.studyPathology) setStudyPathology(d.studyPathology);
-          if (d.studyRhoton) setStudyRhoton(d.studyRhoton);
-          alert('Imported!');
+          applyData(d);
+          alert('Imported! Data will sync to all devices.');
         } catch { alert('Import error.'); }
       };
       reader.readAsText(file);
@@ -614,6 +633,7 @@ const LifeDashboard = () => {
           * { box-sizing: border-box; }
           input, textarea, button { font-family: 'Work Sans', sans-serif; }
           ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-thumb { background: rgba(74,144,217,0.4); border-radius: 4px; }
+          .mob-nav-bar { padding-bottom: max(env(safe-area-inset-bottom, 8px), 8px) !important; }
         `}</style>
 
         {/* Header */}
@@ -634,8 +654,17 @@ const LifeDashboard = () => {
               ))}
             </div>
           </div>
-          <div style={{ fontSize: '0.68rem', fontFamily: '"Crimson Pro", serif', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '2px', color: C.accentLight }}>
-            {SECTIONS[activeSection].icon} {SECTIONS[activeSection].label}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ fontSize: '0.68rem', fontFamily: '"Crimson Pro", serif', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '2px', color: C.accentLight, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              {SECTIONS[activeSection].icon} {SECTIONS[activeSection].label}
+              {syncStatus === 'saving' && <span style={{ fontSize: '0.55rem', color: C.textFaint }}>syncing…</span>}
+              {syncStatus === 'saved' && <span style={{ fontSize: '0.55rem', color: '#5cb85c' }}>✓ synced</span>}
+              {syncStatus === 'error' && <span style={{ fontSize: '0.55rem', color: '#d9534f' }}>⚠ offline</span>}
+            </div>
+            <div style={{ display: 'flex', gap: '0.4rem' }}>
+              <button onClick={exportData} style={{ padding: '0.25rem 0.55rem', background: 'rgba(74,144,217,0.15)', border: `1px solid ${C.border}`, borderRadius: 6, color: C.textMuted, cursor: 'pointer', fontSize: '0.6rem' }}>Export</button>
+              <button onClick={importData} style={{ padding: '0.25rem 0.55rem', background: 'rgba(74,144,217,0.15)', border: `1px solid ${C.border}`, borderRadius: 6, color: C.textMuted, cursor: 'pointer', fontSize: '0.6rem' }}>Import</button>
+            </div>
           </div>
         </div>
 
@@ -647,7 +676,7 @@ const LifeDashboard = () => {
         </div>
 
         {/* Bottom tab bar */}
-        <div style={{ flexShrink: 0, display: 'flex', borderTop: `1px solid ${C.border}`, background: 'rgba(10,22,40,0.97)', backdropFilter: 'blur(12px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+        <div className="mob-nav-bar" style={{ flexShrink: 0, display: 'flex', borderTop: `1px solid ${C.border}`, background: 'rgba(10,22,40,0.97)', backdropFilter: 'blur(12px)' }}>
           {SECTIONS.map((sec, i) => (
             <button key={sec.key} onClick={() => setActiveSection(i)}
               style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0.55rem 0.1rem', background: 'none', border: 'none', cursor: 'pointer', borderTop: i === activeSection ? `2px solid ${C.accent}` : '2px solid transparent' }}>
@@ -710,6 +739,9 @@ const LifeDashboard = () => {
           </div>
           <div style={{ background: C.cardBg, padding: '0.75rem 1rem', borderRadius: 8, border: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <div style={{ fontSize: '0.75rem', color: C.textMuted, whiteSpace: 'nowrap' }}>{today.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</div>
+            <div style={{ fontSize: '0.6rem', marginTop: '0.2rem', color: syncStatus === 'saved' ? '#5cb85c' : syncStatus === 'error' ? '#d9534f' : C.textFaint }}>
+              {syncStatus === 'saving' ? 'syncing…' : syncStatus === 'saved' ? '✓ synced' : syncStatus === 'error' ? '⚠ offline' : ''}
+            </div>
           </div>
         </div>
 
