@@ -485,6 +485,29 @@ const LifeDashboard = () => {
   };
 
   // ── MOBILE LAYOUT ──
+  const [activeSection, setActiveSection] = React.useState(0);
+  const SECTIONS = [
+    { key: 'week',  label: 'Week',       icon: '📅' },
+    { key: 'day',   label: 'Day',        icon: '✅' },
+    { key: 'brain', label: 'Brainstorm', icon: '💡' },
+    { key: 'art',   label: 'Art',        icon: '🎨' },
+    { key: 'neuro', label: 'Neuro',      icon: '🧠' },
+    { key: 'study', label: 'Study',      icon: '📚' },
+  ];
+  const touchStartX = React.useRef(null);
+  const touchStartY = React.useRef(null);
+  const onTouchStart = e => { touchStartX.current = e.touches[0].clientX; touchStartY.current = e.touches[0].clientY; };
+  const onTouchEnd = e => {
+    if (touchStartX.current === null) return;
+    const dx = e.changedTouches[0].clientX - touchStartX.current;
+    const dy = Math.abs(e.changedTouches[0].clientY - touchStartY.current);
+    if (Math.abs(dx) > 50 && Math.abs(dx) > dy * 1.5) {
+      if (dx < 0) setActiveSection(s => Math.min(s + 1, SECTIONS.length - 1));
+      else setActiveSection(s => Math.max(s - 1, 0));
+    }
+    touchStartX.current = null;
+  };
+
   const renderMobile = () => {
     const allDone = Object.values(habits).every(h => h.today);
     const doneCount = Object.values(habits).filter(h => h.today).length;
@@ -493,177 +516,162 @@ const LifeDashboard = () => {
     const totalStudy = [...studyApproach, ...studyPathology, ...studyRhoton].length;
     const doneStudy = [...studyApproach, ...studyPathology, ...studyRhoton].filter(i => i.done).length;
 
+    const sectionMap = {
+      week: (
+        <div style={{ padding: '1rem' }}>
+          <div style={{ display: 'flex', gap: '0.4rem', overflowX: 'auto', paddingBottom: '0.75rem', marginBottom: '0.75rem', borderBottom: `1px solid ${C.border}` }}>
+            {weekDays.map(day => {
+              const isToday = day === todayKey;
+              const isSelected = day === selectedDay;
+              const hasTasks = (weeklyTasks[day] || []).length > 0;
+              return (
+                <button key={day} onClick={() => setSelectedDay(day)} style={{ flexShrink: 0, padding: '0.5rem 0.9rem', borderRadius: 20, fontSize: '0.85rem', fontWeight: '600', cursor: 'pointer', border: `1.5px solid ${isSelected ? C.accent : isToday ? C.accent : hasTasks ? 'rgba(74,144,217,0.5)' : 'rgba(74,144,217,0.2)'}`, background: isSelected ? C.accent : isToday ? 'rgba(74,144,217,0.2)' : 'rgba(74,144,217,0.08)', color: isSelected ? '#fff' : isToday ? C.accentLight : hasTasks ? 'rgba(232,241,252,0.85)' : 'rgba(232,241,252,0.5)', minHeight: 40 }}>
+                  {day}{isToday && !isSelected ? ' •' : ''}
+                </button>
+              );
+            })}
+          </div>
+          <div style={{ fontSize: '0.75rem', color: C.textMuted, marginBottom: '0.75rem', display: 'flex', justifyContent: 'space-between' }}>
+            <span style={{ fontWeight: '600', color: C.accentLight }}>{selectedDay}{selectedDay === todayKey ? ' — Today' : ''}</span>
+            <span>{(weeklyTasks[selectedDay] || []).filter(t => t.done).length}/{(weeklyTasks[selectedDay] || []).length} done</span>
+          </div>
+          {renderDayColumn(selectedDay)}
+        </div>
+      ),
+      day: (
+        <div style={{ padding: '1rem' }}>
+          {allDone && <div style={{ textAlign: 'center', fontSize: '1.8rem', marginBottom: '1rem' }}>🎉</div>}
+          {Object.keys(habits).map(key => (
+            <div key={key} onClick={() => toggleHabit(key)} style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.9rem 1rem', background: habits[key].today ? 'rgba(74,144,217,0.28)' : C.itemBg, borderRadius: 12, marginBottom: '0.5rem', cursor: 'pointer', borderLeft: habits[key].today ? `3px solid ${C.accent}` : '3px solid transparent', minHeight: 58 }}>
+              <span style={{ fontSize: '1.4rem' }}>{habitIcons[key]}</span>
+              <span style={{ flex: 1, fontSize: '0.95rem', textDecoration: habits[key].today ? 'line-through' : 'none', opacity: habits[key].today ? 0.65 : 1 }}>{habitLabels[key]}</span>
+              {habits[key].streak > 0 && <span style={{ background: 'linear-gradient(135deg,#4A90D9,#2E6FBB)', color: '#fff', padding: '0.25rem 0.6rem', borderRadius: 12, fontSize: '0.78rem', fontWeight: '600' }}>{habits[key].streak} 🔥</span>}
+            </div>
+          ))}
+        </div>
+      ),
+      brain: (
+        <div style={{ padding: '1rem' }}>
+          <textarea value={newBrainstorm} onChange={e => setNewBrainstorm(e.target.value)} placeholder="New idea..." style={{ width: '100%', padding: '0.85rem', background: 'rgba(0,0,0,0.35)', border: `1px solid ${C.border}`, borderRadius: 10, color: C.text, fontSize: '1rem', fontFamily: 'inherit', resize: 'none', height: 110, marginBottom: '0.65rem' }} />
+          <button onClick={addBrainstorm} style={{ width: '100%', padding: '0.8rem', background: `linear-gradient(135deg,${C.accent},#2E6FBB)`, border: 'none', borderRadius: 10, color: '#fff', fontWeight: '600', cursor: 'pointer', fontSize: '0.95rem', marginBottom: '1rem' }}>+ Add</button>
+          {brainstormEntries.map(e => renderBrainstormEntry(e, false))}
+          {brainstormHistory.length > 0 && (
+            <div style={{ marginTop: '0.75rem', borderTop: `1px solid ${C.border}`, paddingTop: '0.75rem' }}>
+              <button onClick={() => setShowHistory(!showHistory)} style={{ width: '100%', padding: '0.7rem', background: 'rgba(74,144,217,0.1)', border: `1px solid ${C.border}`, borderRadius: 8, color: C.accentLight, cursor: 'pointer', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}>
+                {showHistory ? '▼' : '▶'} History ({brainstormHistory.length})
+              </button>
+              {showHistory && <div style={{ marginTop: '0.75rem' }}>{brainstormHistory.map(e => renderBrainstormEntry(e, true))}</div>}
+            </div>
+          )}
+        </div>
+      ),
+      art: (
+        <div style={{ padding: '1rem' }}>
+          {dailyContent && (
+            <div style={{ background: C.itemBg, border: `1px solid ${C.border}`, borderRadius: 14, padding: '1.25rem' }}>
+              <h3 style={{ fontFamily: '"Crimson Pro", serif', fontSize: '1.2rem', fontWeight: '600', marginBottom: '0.3rem', color: C.accentLight }}>{dailyContent.name}</h3>
+              <div style={{ fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '1px', color: C.textMuted, marginBottom: '0.85rem' }}>{dailyContent.type} · {dailyContent.contentType}</div>
+              <p style={{ fontSize: '1rem', fontStyle: 'italic', lineHeight: '1.65', color: 'rgba(232,241,252,0.9)', marginBottom: '0.85rem' }}>"{dailyContent.content}"</p>
+              <p style={{ fontSize: '0.85rem', lineHeight: '1.6', color: C.textMuted }}>{dailyContent.context}</p>
+            </div>
+          )}
+        </div>
+      ),
+      neuro: (
+        <div style={{ padding: '1rem' }}>
+          {dailyArticle && (
+            <>
+              <a href={dailyArticle.url} target="_blank" rel="noopener noreferrer" style={{ display: 'block', padding: '1rem', background: C.itemBg, borderLeft: `3px solid ${C.accent}`, borderRadius: 12, marginBottom: '0.75rem', textDecoration: 'none', color: 'inherit' }}>
+                <div style={{ fontSize: '0.95rem', fontWeight: '500', lineHeight: '1.45', color: C.text, marginBottom: '0.4rem' }}>{dailyArticle.title}</div>
+                <div style={{ fontSize: '0.75rem', color: C.textMuted, fontStyle: 'italic' }}>{dailyArticle.journal}</div>
+              </a>
+              <button onClick={markArticleRead} style={{ width: '100%', padding: '0.8rem', background: 'rgba(74,144,217,0.1)', border: `1px solid ${C.border}`, borderRadius: 10, color: C.accentLight, cursor: 'pointer', fontSize: '0.9rem', marginBottom: '0.75rem' }}>Mark as Read ✓</button>
+              {articleHistory.length > 0 && (
+                <>
+                  <button onClick={() => setShowArticleHistory(!showArticleHistory)} style={{ width: '100%', padding: '0.7rem', background: 'rgba(74,144,217,0.1)', border: `1px solid ${C.border}`, borderRadius: 8, color: C.accentLight, cursor: 'pointer', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', marginBottom: showArticleHistory ? '0.6rem' : 0 }}>
+                    {showArticleHistory ? '▼' : '▶'} History ({articleHistory.length})
+                  </button>
+                  {showArticleHistory && articleHistory.map((article, i) => (
+                    <div key={i} style={{ background: C.itemBg, borderLeft: `2px solid ${C.border}`, borderRadius: 8, padding: '0.75rem', marginBottom: '0.4rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: '0.82rem', fontWeight: '500', lineHeight: '1.3', marginBottom: '0.2rem' }}>{article.title}</div>
+                          <div style={{ fontSize: '0.68rem', color: C.textFaint }}>{new Date(article.readDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>
+                        </div>
+                        <button onClick={() => setArticleHistory(prev => prev.filter((_, j) => j !== i))} style={{ background: 'none', border: 'none', color: C.textFaint, cursor: 'pointer' }}><Trash2 size={12} /></button>
+                      </div>
+                    </div>
+                  ))}
+                </>
+              )}
+            </>
+          )}
+        </div>
+      ),
+      study: (
+        <div style={{ padding: '1rem' }}>
+          <div style={{ fontSize: '0.72rem', color: C.textMuted, marginBottom: '0.75rem', textAlign: 'right' }}>{doneStudy}/{totalStudy} complete</div>
+          {renderStudyList(studyApproach, setStudyApproach, 'Approach')}
+          <div style={{ height: '1px', background: C.border, margin: '0.75rem 0' }} />
+          {renderStudyList(studyPathology, setStudyPathology, 'Pathology')}
+          <div style={{ height: '1px', background: C.border, margin: '0.75rem 0' }} />
+          {renderStudyList(studyRhoton, setStudyRhoton, 'Rhoton')}
+          <div style={{ marginTop: '1.5rem', display: 'flex', gap: '0.5rem' }}>
+            <button onClick={exportData} style={{ flex: 1, padding: '0.7rem', background: 'rgba(74,144,217,0.1)', border: `1px solid ${C.border}`, borderRadius: 8, color: C.accentLight, cursor: 'pointer', fontSize: '0.85rem' }}>Export</button>
+            <button onClick={importData} style={{ flex: 1, padding: '0.7rem', background: 'rgba(74,144,217,0.1)', border: `1px solid ${C.border}`, borderRadius: 8, color: C.accentLight, cursor: 'pointer', fontSize: '0.85rem' }}>Import</button>
+          </div>
+        </div>
+      ),
+    };
+
     return (
-      <div style={{ minHeight: '100vh', background: `linear-gradient(160deg, ${C.bg1} 0%, #0A1628 100%)`, color: C.text, fontFamily: '"Work Sans", sans-serif', padding: '0', paddingBottom: '2rem' }}>
+      <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: `linear-gradient(160deg, ${C.bg1} 0%, #0A1628 100%)`, color: C.text, fontFamily: '"Work Sans", sans-serif', overflow: 'hidden' }}>
         <style>{`
           @import url('https://fonts.googleapis.com/css2?family=Crimson+Pro:wght@400;600;700&family=Work+Sans:wght@300;400;500;600&display=swap');
-          * { box-sizing: border-box; margin: 0; padding: 0; }
+          * { box-sizing: border-box; }
           input, textarea, button { font-family: 'Work Sans', sans-serif; }
-          .mob-input { width: 100%; padding: 0.65rem 0.75rem; background: rgba(0,0,0,0.35); border: 1px solid rgba(74,144,217,0.35); border-radius: 8px; color: #E8F1FC; font-size: 1rem; }
-          .mob-input:focus { outline: none; border-color: #7EB8F7; }
-          .mob-btn-primary { display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem; padding: 0.65rem 1rem; background: linear-gradient(135deg,#4A90D9,#2E6FBB); border: none; border-radius: 8px; color: #fff; font-weight: 600; cursor: pointer; font-size: 0.9rem; }
-          .mob-btn-ghost { padding: 0.65rem 1rem; background: rgba(74,144,217,0.12); border: 1px solid rgba(74,144,217,0.3); border-radius: 8px; color: #7EB8F7; cursor: pointer; font-size: 0.85rem; }
-          .day-pill { padding: 0.45rem 0.7rem; border-radius: 20px; font-size: 0.78rem; font-weight: 600; cursor: pointer; border: 1.5px solid transparent; transition: all 0.15s; white-space: nowrap; min-height: 36px; display: flex; align-items: center; }
-          .day-pill.active { background: #4A90D9; color: #fff; border-color: #4A90D9; }
-          .day-pill.inactive { background: rgba(74,144,217,0.1); color: rgba(232,241,252,0.6); border-color: rgba(74,144,217,0.2); }
-          .day-pill.has-tasks { border-color: rgba(74,144,217,0.5); color: rgba(232,241,252,0.85); }
+          ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-thumb { background: rgba(74,144,217,0.4); border-radius: 4px; }
         `}</style>
 
-        {/* Mobile header */}
-        <div style={{ padding: '1rem 1rem 0.6rem', background: 'rgba(0,0,0,0.3)', borderBottom: `1px solid ${C.border}`, position: 'sticky', top: 0, zIndex: 50, backdropFilter: 'blur(12px)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+        {/* Header */}
+        <div style={{ flexShrink: 0, padding: '0.85rem 1rem 0.55rem', background: 'rgba(10,22,40,0.97)', borderBottom: `1px solid ${C.border}`, backdropFilter: 'blur(12px)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
             <div>
-              <div style={{ fontSize: '0.6rem', textTransform: 'uppercase', letterSpacing: '1.5px', color: C.textMuted }}>Dashboard</div>
               <div style={{ fontFamily: '"Crimson Pro", serif', fontSize: '1rem', fontWeight: '600', color: C.accentLight }}>
                 {today.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
               </div>
+              <div style={{ fontSize: '0.6rem', color: C.textMuted, marginTop: '0.1rem' }}>Surgery: {weeksSinceSurgery}w {remainderDays}d ago</div>
             </div>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: '0.6rem', color: C.textMuted, textTransform: 'uppercase', letterSpacing: '1px' }}>Surgery</div>
-              <div style={{ fontSize: '0.85rem', fontWeight: '600', color: C.accentLight }}>{weeksSinceSurgery}w {remainderDays}d</div>
-            </div>
-          </div>
-          {/* Mini countdowns row */}
-          <div style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto', paddingBottom: '0.3rem' }}>
-            {countdowns.map(c => (
-              <div key={c.label} style={{ flexShrink: 0, background: 'rgba(74,144,217,0.12)', border: `1px solid ${C.border}`, borderRadius: 8, padding: '0.3rem 0.6rem', textAlign: 'center' }}>
-                <div style={{ fontSize: '0.55rem', textTransform: 'uppercase', letterSpacing: '1px', color: C.textMuted }}>{c.label}</div>
-                <div style={{ fontSize: '0.78rem', fontWeight: '600', color: C.accentLight }}>{c.days}d</div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Sections */}
-        <div style={{ padding: '0.75rem' }}>
-
-          {/* 1. THE WEEK */}
-          <Accordion title="The Week" defaultOpen={true} badge={`${doneTasks}/${totalTasks}`}>
-            {/* Day switcher */}
-            <div style={{ display: 'flex', gap: '0.4rem', overflowX: 'auto', paddingBottom: '0.6rem', marginBottom: '0.75rem', borderBottom: `1px solid ${C.border}` }}>
-              {weekDays.map((day, i) => {
-                const d = new Date(); d.setDate(d.getDate() - d.getDay() + (i === 6 ? 0 : i + 1));
-                const hasTasks = (weeklyTasks[day] || []).length > 0;
-                const isToday = day === todayKey;
-                const isSelected = day === selectedDay;
-                return (
-                  <button key={day} onClick={() => setSelectedDay(day)}
-                    className={`day-pill ${isSelected ? 'active' : hasTasks ? 'has-tasks' : 'inactive'}`}
-                    style={{ background: isSelected ? '#4A90D9' : isToday ? 'rgba(74,144,217,0.2)' : 'rgba(74,144,217,0.1)', borderColor: isSelected ? '#4A90D9' : isToday ? '#4A90D9' : 'rgba(74,144,217,0.2)', color: isSelected ? '#fff' : isToday ? C.accentLight : 'rgba(232,241,252,0.6)' }}>
-                    <span>{day}</span>
-                    {isToday && !isSelected && <span style={{ display: 'block', width: 4, height: 4, background: C.accent, borderRadius: '50%', marginLeft: '0.3rem' }} />}
-                  </button>
-                );
-              })}
-            </div>
-            {/* Selected day tasks */}
-            <div style={{ marginBottom: '0.5rem' }}>
-              <div style={{ fontSize: '0.7rem', color: C.textMuted, marginBottom: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontWeight: '600', color: C.accentLight }}>{selectedDay}{selectedDay === todayKey ? ' — Today' : ''}</span>
-                <span>{(weeklyTasks[selectedDay] || []).filter(t => t.done).length}/{(weeklyTasks[selectedDay] || []).length} done</span>
-              </div>
-              {renderDayColumn(selectedDay)}
-            </div>
-          </Accordion>
-
-          {/* 2. THE DAY (habits) */}
-          <Accordion title="The Day" defaultOpen={true} badge={`${doneCount}/6`} accentColor={allDone ? '#7EB8F7' : C.accentLight}>
-            {allDone && <div style={{ textAlign: 'center', fontSize: '1.5rem', marginBottom: '0.5rem' }}>🎉 All done!</div>}
-            {Object.keys(habits).map(key => (
-              <div key={key} onClick={() => toggleHabit(key)}
-                style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem 0.8rem', background: habits[key].today ? 'rgba(74,144,217,0.3)' : C.itemBg, borderRadius: 8, marginBottom: '0.4rem', cursor: 'pointer', borderLeft: habits[key].today ? `3px solid ${C.accent}` : '3px solid transparent', minHeight: 52, transition: 'all 0.2s' }}>
-                <span style={{ fontSize: '1.2rem' }}>{habitIcons[key]}</span>
-                <span style={{ flex: 1, fontSize: '0.9rem', textDecoration: habits[key].today ? 'line-through' : 'none', opacity: habits[key].today ? 0.7 : 1 }}>{habitLabels[key]}</span>
-                {habits[key].streak > 0 && <span style={{ background: 'linear-gradient(135deg,#4A90D9,#2E6FBB)', color: '#fff', padding: '0.2rem 0.5rem', borderRadius: 12, fontSize: '0.75rem', fontWeight: '600' }}>{habits[key].streak} 🔥</span>}
-              </div>
-            ))}
-          </Accordion>
-
-          {/* 3. BRAINSTORM */}
-          <Accordion title="Brainstorm" defaultOpen={false} badge={brainstormEntries.length > 0 ? `${brainstormEntries.length} active` : undefined}>
-            <textarea value={newBrainstorm} onChange={e => setNewBrainstorm(e.target.value)} placeholder="New idea..."
-              style={{ width: '100%', padding: '0.75rem', background: 'rgba(0,0,0,0.35)', border: `1px solid ${C.border}`, borderRadius: 8, color: C.text, fontSize: '1rem', fontFamily: 'inherit', resize: 'none', height: 90, marginBottom: '0.5rem' }} />
-            <button onClick={addBrainstorm} className="mob-btn-primary" style={{ width: '100%', marginBottom: '0.75rem' }}><Plus size={14} /> Add</button>
-            {brainstormEntries.map(e => renderBrainstormEntry(e, false))}
-            {brainstormHistory.length > 0 && (
-              <div style={{ marginTop: '0.5rem', borderTop: `1px solid ${C.border}`, paddingTop: '0.6rem' }}>
-                <button onClick={() => setShowHistory(!showHistory)} className="mob-btn-ghost" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.3rem' }}>
-                  {showHistory ? '▼' : '▶'} History ({brainstormHistory.length})
-                </button>
-                {showHistory && <div style={{ marginTop: '0.6rem' }}>{brainstormHistory.map(e => renderBrainstormEntry(e, true))}</div>}
-              </div>
-            )}
-          </Accordion>
-
-          {/* 4. ART & COUNTDOWNS */}
-          <Accordion title="Art & Countdowns" defaultOpen={false}>
-            {/* Countdowns grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '0.5rem', marginBottom: '1rem' }}>
+            <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
               {countdowns.map(c => (
-                <div key={c.label} style={{ background: C.itemBg, border: `1px solid ${C.border}`, borderRadius: 8, padding: '0.6rem', textAlign: 'center' }}>
-                  <div style={{ fontSize: '0.6rem', textTransform: 'uppercase', letterSpacing: '1px', color: C.textMuted, marginBottom: '0.2rem' }}>{c.label}</div>
-                  <div style={{ fontSize: '1.1rem', fontWeight: '700', color: C.accentLight, fontFamily: '"Crimson Pro", serif' }}>{c.days}</div>
-                  <div style={{ fontSize: '0.6rem', color: C.textFaint }}>days</div>
+                <div key={c.label} style={{ background: 'rgba(74,144,217,0.12)', border: `1px solid ${C.border}`, borderRadius: 7, padding: '0.2rem 0.45rem', textAlign: 'center' }}>
+                  <div style={{ fontSize: '0.48rem', textTransform: 'uppercase', color: C.textMuted }}>{c.label}</div>
+                  <div style={{ fontSize: '0.72rem', fontWeight: '700', color: C.accentLight }}>{c.days}d</div>
                 </div>
               ))}
             </div>
-            {/* Art content */}
-            {dailyContent && (
-              <div style={{ background: C.itemBg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '1rem' }}>
-                <h3 style={{ fontFamily: '"Crimson Pro", serif', fontSize: '1.05rem', fontWeight: '600', marginBottom: '0.25rem', color: C.accentLight }}>{dailyContent.name}</h3>
-                <div style={{ fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '1px', color: C.textMuted, marginBottom: '0.6rem' }}>{dailyContent.type} · {dailyContent.contentType}</div>
-                <p style={{ fontSize: '0.9rem', fontStyle: 'italic', lineHeight: '1.5', color: 'rgba(232,241,252,0.9)', marginBottom: '0.6rem' }}>"{dailyContent.content}"</p>
-                <p style={{ fontSize: '0.8rem', lineHeight: '1.5', color: C.textMuted }}>{dailyContent.context}</p>
-              </div>
-            )}
-          </Accordion>
-
-          {/* 5. NEUROSURGERY */}
-          <Accordion title="Neurosurgery" defaultOpen={false} badge={articleHistory.length > 0 ? `${articleHistory.length} read` : undefined}>
-            {dailyArticle && (
-              <div>
-                <a href={dailyArticle.url} target="_blank" rel="noopener noreferrer"
-                  style={{ display: 'block', padding: '0.85rem', background: C.itemBg, borderLeft: `3px solid ${C.accent}`, borderRadius: 8, marginBottom: '0.6rem', textDecoration: 'none', color: 'inherit' }}>
-                  <div style={{ fontSize: '0.88rem', fontWeight: '500', lineHeight: '1.4', color: C.text, marginBottom: '0.3rem' }}>{dailyArticle.title}</div>
-                  <div style={{ fontSize: '0.72rem', color: C.textMuted, fontStyle: 'italic' }}>{dailyArticle.journal}</div>
-                </a>
-                <button onClick={markArticleRead} className="mob-btn-ghost" style={{ width: '100%', marginBottom: '0.5rem' }}>Mark as Read ✓</button>
-                {articleHistory.length > 0 && (
-                  <>
-                    <button onClick={() => setShowArticleHistory(!showArticleHistory)} className="mob-btn-ghost" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.3rem', marginBottom: showArticleHistory ? '0.5rem' : 0 }}>
-                      {showArticleHistory ? '▼' : '▶'} History ({articleHistory.length})
-                    </button>
-                    {showArticleHistory && articleHistory.map((article, i) => (
-                      <div key={i} style={{ background: C.itemBg, borderLeft: `2px solid ${C.border}`, borderRadius: 6, padding: '0.6rem', marginBottom: '0.3rem' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
-                          <div style={{ flex: 1 }}>
-                            <div style={{ fontSize: '0.78rem', fontWeight: '500', lineHeight: '1.3', marginBottom: '0.2rem' }}>{article.title}</div>
-                            <div style={{ fontSize: '0.65rem', color: C.textFaint }}>{new Date(article.readDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>
-                          </div>
-                          <button onClick={() => setArticleHistory(prev => prev.filter((_, j) => j !== i))} style={{ background: 'none', border: 'none', color: C.textFaint, cursor: 'pointer' }}><Trash2 size={11} /></button>
-                        </div>
-                      </div>
-                    ))}
-                  </>
-                )}
-              </div>
-            )}
-          </Accordion>
-
-          {/* 6. STUDY */}
-          <Accordion title="Study" defaultOpen={false} badge={`${doneStudy}/${totalStudy}`}>
-            {renderStudyList(studyApproach, setStudyApproach, 'Approach')}
-            <div style={{ height: '1px', background: C.border, margin: '0.6rem 0' }} />
-            {renderStudyList(studyPathology, setStudyPathology, 'Pathology')}
-            <div style={{ height: '1px', background: C.border, margin: '0.6rem 0' }} />
-            {renderStudyList(studyRhoton, setStudyRhoton, 'Rhoton')}
-          </Accordion>
-
-          {/* Utilities */}
-          <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
-            <button onClick={exportData} className="mob-btn-ghost" style={{ flex: 1 }}>Export</button>
-            <button onClick={importData} className="mob-btn-ghost" style={{ flex: 1 }}>Import</button>
           </div>
+          <div style={{ fontSize: '0.68rem', fontFamily: '"Crimson Pro", serif', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '2px', color: C.accentLight }}>
+            {SECTIONS[activeSection].icon} {SECTIONS[activeSection].label}
+          </div>
+        </div>
+
+        {/* Scrollable content — swipe to change section */}
+        <div onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}
+          style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', WebkitOverflowScrolling: 'touch' }}>
+          {sectionMap[SECTIONS[activeSection].key]}
+          <div style={{ height: '1rem' }} />
+        </div>
+
+        {/* Bottom tab bar */}
+        <div style={{ flexShrink: 0, display: 'flex', borderTop: `1px solid ${C.border}`, background: 'rgba(10,22,40,0.97)', backdropFilter: 'blur(12px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+          {SECTIONS.map((sec, i) => (
+            <button key={sec.key} onClick={() => setActiveSection(i)}
+              style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0.55rem 0.1rem', background: 'none', border: 'none', cursor: 'pointer', borderTop: i === activeSection ? `2px solid ${C.accent}` : '2px solid transparent' }}>
+              <span style={{ fontSize: '1.15rem' }}>{sec.icon}</span>
+              <span style={{ fontSize: '0.5rem', color: i === activeSection ? C.accentLight : C.textFaint, fontWeight: i === activeSection ? '600' : '400', textTransform: 'uppercase', letterSpacing: '0.3px', marginTop: '0.1rem' }}>{sec.label}</span>
+            </button>
+          ))}
         </div>
       </div>
     );
