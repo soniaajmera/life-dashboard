@@ -6,31 +6,48 @@ const ExternalLink = ({ size }) => <span style={{ fontSize: `${size || 11}px` }}
 const Check = ({ size, color }) => <span style={{ fontSize: `${size || 9}px`, color: color || 'inherit', fontWeight: 'bold' }}>✓</span>;
 const Plus = ({ size, color }) => <span style={{ fontSize: `${size || 13}px`, color: color || 'inherit', fontWeight: 'bold' }}>+</span>;
 const Trash2 = ({ size }) => <span style={{ fontSize: `${size || 10}px` }}>🗑</span>;
-const Star = ({ size, fill, color }) => <span style={{ fontSize: `${size || 12}px`, color: fill !== 'none' ? (color || '#7EB8F7') : (color || 'rgba(180, 210, 245, 0.3)') }}>{fill !== 'none' ? '⭐' : '☆'}</span>;
+const Star = ({ size, fill, color }) => <span style={{ fontSize: `${size || 12}px`, color: fill !== 'none' ? (color || '#7EB8F7') : (color || 'rgba(180,210,245,0.3)') }}>{fill !== 'none' ? '⭐' : '☆'}</span>;
 
-// Blue palette
 const C = {
-  bg1: '#0F1F35',
-  bg2: '#162840',
-  accent: '#4A90D9',
-  accentLight: '#7EB8F7',
-  border: 'rgba(74, 144, 217, 0.3)',
-  cardBg: 'rgba(180, 210, 245, 0.05)',
-  itemBg: 'rgba(74, 144, 217, 0.18)',
-  itemBgHover: 'rgba(74, 144, 217, 0.28)',
-  itemBgDone: 'rgba(74, 144, 217, 0.35)',
-  text: '#E8F1FC',
-  textMuted: 'rgba(232, 241, 252, 0.55)',
-  textFaint: 'rgba(232, 241, 252, 0.35)',
-  warn: 'rgba(232, 241, 252, 0.68)',
-  warnBorder: '#2A5A8A',
-  warnText: '#0D1E30',
+  bg1: '#0F1F35', bg2: '#162840', accent: '#4A90D9', accentLight: '#7EB8F7',
+  border: 'rgba(74,144,217,0.3)', cardBg: 'rgba(180,210,245,0.05)',
+  itemBg: 'rgba(74,144,217,0.18)', itemBgHover: 'rgba(74,144,217,0.28)',
+  itemBgDone: 'rgba(74,144,217,0.35)', text: '#E8F1FC',
+  textMuted: 'rgba(232,241,252,0.55)', textFaint: 'rgba(232,241,252,0.35)',
+  warn: 'rgba(232,241,252,0.68)', warnBorder: '#2A5A8A', warnText: '#0D1E30',
+};
+
+// ── Accordion wrapper for mobile ──
+const Accordion = ({ title, badge, defaultOpen = false, children, accentColor }) => {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div style={{ borderRadius: 10, border: `1px solid ${C.border}`, overflow: 'hidden', marginBottom: '0.6rem' }}>
+      <button onClick={() => setOpen(o => !o)} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.9rem 1rem', background: open ? 'rgba(74,144,217,0.12)' : 'rgba(74,144,217,0.06)', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <span style={{ fontFamily: '"Crimson Pro", serif', fontSize: '0.8rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '2px', color: accentColor || C.accentLight }}>{title}</span>
+          {badge !== undefined && <span style={{ fontSize: '0.65rem', color: C.textFaint, fontWeight: 'normal' }}>{badge}</span>}
+        </div>
+        <span style={{ color: C.accentLight, fontSize: '0.7rem', transition: 'transform 0.2s', display: 'inline-block', transform: open ? 'rotate(0deg)' : 'rotate(-90deg)' }}>▼</span>
+      </button>
+      {open && (
+        <div style={{ padding: '0.8rem 1rem', background: C.cardBg }}>
+          {children}
+        </div>
+      )}
+    </div>
+  );
 };
 
 const LifeDashboard = () => {
   const surgeryDate = new Date('2025-11-04');
   const dashboardStartDate = new Date('2026-01-28');
   const today = new Date();
+
+  const weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  // Figure out which day key corresponds to "today"
+  const todayDayIndex = today.getDay(); // 0=Sun, 1=Mon ... 6=Sat
+  const todayKey = weekDays[todayDayIndex === 0 ? 6 : todayDayIndex - 1]; // convert to Mon-based
+  const [selectedDay, setSelectedDay] = useState(todayKey);
 
   const [habits, setHabits] = useState({
     knee: { streak: 0, today: false, totalCompleted: 0 },
@@ -73,28 +90,17 @@ const LifeDashboard = () => {
   const [lastArticleDate, setLastArticleDate] = useState(null);
 
   const [studyApproach, setStudyApproach] = useState([
-    { id: 'a1', text: 'Pterional', done: false },
-    { id: 'a2', text: 'Parietal', done: false },
-    { id: 'a3', text: 'Supraorbital', done: false },
-    { id: 'a4', text: 'Temporal/Subtemporal', done: false },
-    { id: 'a5', text: 'Occipital', done: false },
-    { id: 'a6', text: 'Parasagittal', done: false },
-    { id: 'a7', text: 'Interhemispheric', done: false },
-    { id: 'a8', text: 'Bifrontal', done: false },
-    { id: 'a9', text: 'Intradural', done: false },
-    { id: 'a10', text: 'Extradural', done: false },
-    { id: 'a11', text: 'Suboccipital', done: false },
-    { id: 'a12', text: 'Retromastoid', done: false },
-    { id: 'a13', text: 'Midline Supracerebellar', done: false },
-    { id: 'a14', text: 'Paramedian Supracerebellar', done: false },
-    { id: 'a15', text: 'Transtentorial to Parahippocampus', done: false },
-    { id: 'a16', text: 'Telovelar', done: false },
-    { id: 'a17', text: 'Endoscopic Expanded Transnasal', done: false },
-    { id: 'a18', text: 'Microscope-Guided Endonasal', done: false },
-    { id: 'a19', text: 'Far lateral', done: false },
-    { id: 'a20', text: 'Extended Posterior Petrosectomy', done: false },
-    { id: 'a21', text: 'Anterior Petrosectomy', done: false },
-    { id: 'a22', text: 'Orbitozygomatic', done: false },
+    { id: 'a1', text: 'Pterional', done: false }, { id: 'a2', text: 'Parietal', done: false },
+    { id: 'a3', text: 'Supraorbital', done: false }, { id: 'a4', text: 'Temporal/Subtemporal', done: false },
+    { id: 'a5', text: 'Occipital', done: false }, { id: 'a6', text: 'Parasagittal', done: false },
+    { id: 'a7', text: 'Interhemispheric', done: false }, { id: 'a8', text: 'Bifrontal', done: false },
+    { id: 'a9', text: 'Intradural', done: false }, { id: 'a10', text: 'Extradural', done: false },
+    { id: 'a11', text: 'Suboccipital', done: false }, { id: 'a12', text: 'Retromastoid', done: false },
+    { id: 'a13', text: 'Midline Supracerebellar', done: false }, { id: 'a14', text: 'Paramedian Supracerebellar', done: false },
+    { id: 'a15', text: 'Transtentorial to Parahippocampus', done: false }, { id: 'a16', text: 'Telovelar', done: false },
+    { id: 'a17', text: 'Endoscopic Expanded Transnasal', done: false }, { id: 'a18', text: 'Microscope-Guided Endonasal', done: false },
+    { id: 'a19', text: 'Far lateral', done: false }, { id: 'a20', text: 'Extended Posterior Petrosectomy', done: false },
+    { id: 'a21', text: 'Anterior Petrosectomy', done: false }, { id: 'a22', text: 'Orbitozygomatic', done: false },
     { id: 'a23', text: 'Supracerebellar Transventricular', done: false },
     { id: 'a24', text: 'Posterior Interhemispheric Transcollosal Intervenous', done: false },
     { id: 'a25', text: 'Transcallosal Interforniceal', done: false },
@@ -102,48 +108,31 @@ const LifeDashboard = () => {
     { id: 'a27', text: 'Transcalosal Expanded Transforaminal Transvenous Transchoroidal', done: false },
     { id: 'a28', text: 'Contralateral Interhemispheric Transfalcine Transprecuneus', done: false },
   ]);
-
   const [studyPathology, setStudyPathology] = useState([
-    { id: 'p1', text: 'Convexity Meningioma', done: false },
-    { id: 'p2', text: 'Parasagittal Meningioma', done: false },
-    { id: 'p3', text: 'Parafalcine Meningioma', done: false },
-    { id: 'p4', text: 'Olfactory Groove Meningioma', done: false },
-    { id: 'p5', text: 'High-Grade Meningioma', done: false },
-    { id: 'p6', text: 'Low-Grade Glioma', done: false },
-    { id: 'p7', text: 'Language Mapping for Glioma', done: false },
-    { id: 'p8', text: 'Sensorimotor Mapping for Glioma', done: false },
-    { id: 'p9', text: 'Hemangioblastoma', done: false },
-    { id: 'p10', text: 'Metastasis', done: false },
-    { id: 'p11', text: 'CNS Lymphoma', done: false },
-    { id: 'p12', text: 'Posterior Mesencephalic and Pontine Pilocytic Astro', done: false },
-    { id: 'p13', text: 'Lateral Ventricular', done: false },
-    { id: 'p14', text: 'Colloid Cyst (Transcortical)', done: false },
-    { id: 'p15', text: 'Colloid Cyst (Transcallosal)', done: false },
-    { id: 'p16', text: 'Third Ventricular', done: false },
-    { id: 'p17', text: 'Fourth Ventricular', done: false },
-    { id: 'p18', text: 'Medulloblastoma', done: false },
-    { id: 'p19', text: 'Thalamic', done: false },
-    { id: 'p20', text: 'Insular', done: false },
+    { id: 'p1', text: 'Convexity Meningioma', done: false }, { id: 'p2', text: 'Parasagittal Meningioma', done: false },
+    { id: 'p3', text: 'Parafalcine Meningioma', done: false }, { id: 'p4', text: 'Olfactory Groove Meningioma', done: false },
+    { id: 'p5', text: 'High-Grade Meningioma', done: false }, { id: 'p6', text: 'Low-Grade Glioma', done: false },
+    { id: 'p7', text: 'Language Mapping for Glioma', done: false }, { id: 'p8', text: 'Sensorimotor Mapping for Glioma', done: false },
+    { id: 'p9', text: 'Hemangioblastoma', done: false }, { id: 'p10', text: 'Metastasis', done: false },
+    { id: 'p11', text: 'CNS Lymphoma', done: false }, { id: 'p12', text: 'Posterior Mesencephalic and Pontine Pilocytic Astro', done: false },
+    { id: 'p13', text: 'Lateral Ventricular', done: false }, { id: 'p14', text: 'Colloid Cyst (Transcortical)', done: false },
+    { id: 'p15', text: 'Colloid Cyst (Transcallosal)', done: false }, { id: 'p16', text: 'Third Ventricular', done: false },
+    { id: 'p17', text: 'Fourth Ventricular', done: false }, { id: 'p18', text: 'Medulloblastoma', done: false },
+    { id: 'p19', text: 'Thalamic', done: false }, { id: 'p20', text: 'Insular', done: false },
   ]);
-
   const [studyRhoton, setStudyRhoton] = useState([
-    { id: 'r1', text: 'Anterior skull base, part 1', done: false },
-    { id: 'r2', text: 'Anterior skull base, part 2', done: false },
-    { id: 'r3', text: 'Approaches to the Brainstem', done: false },
-    { id: 'r4', text: 'Cavernous sinus and middle fossa', done: false },
-    { id: 'r5', text: 'Cerebellar pontine angle and fourth ventricle', done: false },
-    { id: 'r6', text: 'Fiber pathways', done: false },
+    { id: 'r1', text: 'Anterior skull base, part 1', done: false }, { id: 'r2', text: 'Anterior skull base, part 2', done: false },
+    { id: 'r3', text: 'Approaches to the Brainstem', done: false }, { id: 'r4', text: 'Cavernous sinus and middle fossa', done: false },
+    { id: 'r5', text: 'Cerebellar pontine angle and fourth ventricle', done: false }, { id: 'r6', text: 'Fiber pathways', done: false },
     { id: 'r7', text: 'Head and neck anatomy for neurosurgeons', done: false },
     { id: 'r8', text: 'Internal structures and safe entry zones of the brainstem', done: false },
     { id: 'r9', text: 'Jugular foramen and far lateral approach', done: false },
-    { id: 'r10', text: 'Navigating the orbit', done: false },
-    { id: 'r11', text: 'Navigating the temporal bone', done: false },
-    { id: 'r12', text: 'Navigating the ventricles', done: false },
-    { id: 'r13', text: 'Preserving the frontal muscle', done: false },
+    { id: 'r10', text: 'Navigating the orbit', done: false }, { id: 'r11', text: 'Navigating the temporal bone', done: false },
+    { id: 'r12', text: 'Navigating the ventricles', done: false }, { id: 'r13', text: 'Preserving the frontal muscle', done: false },
     { id: 'r14', text: 'The nose for neurosurgeons', done: false },
   ]);
 
-  // Load
+  // ── Load ──
   useEffect(() => {
     const stored = localStorage.getItem('lifeDashboardData');
     if (stored) {
@@ -170,7 +159,7 @@ const LifeDashboard = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Save
+  // ── Save ──
   useEffect(() => {
     localStorage.setItem('lifeDashboardData', JSON.stringify({ habits, weeklyTasks, monthlyGoals, researchProjects, researchHistory, brainstormEntries, brainstormHistory, articleHistory, lastArticleDate, dailyArticle, lastWeeklyReset, lastMonthlyReset, lastHabitDate, studyApproach, studyPathology, studyRhoton }));
   }, [habits, weeklyTasks, monthlyGoals, researchProjects, researchHistory, brainstormEntries, brainstormHistory, articleHistory, lastArticleDate, dailyArticle, lastWeeklyReset, lastMonthlyReset, lastHabitDate, studyApproach, studyPathology, studyRhoton]);
@@ -198,11 +187,11 @@ const LifeDashboard = () => {
     { title: 'Intraoperative Evaluation of Dural Arteriovenous Fistula Obliteration Using FLOW 800 Hemodynamic Analysis', journal: 'Operative Neurosurgery', url: 'https://journals.lww.com/onsonline/fulltext/2026/02000/intraoperative_evaluation_of_dural_arteriovenous.10.aspx' },
     { title: 'Optimizing Extradural Exposure in the Posterior Petrosal Approach: The Role of Endolymphatic Sac Peeling', journal: 'Operative Neurosurgery', url: 'https://journals.lww.com/onsonline/fulltext/2026/02000/optimizing_extradural_exposure_in_the_posterior.16.aspx' },
     { title: 'Motion Tracking Analysis of Robotic Versus Hand-Sewn Sutures in End-To-Side Microanastomoses', journal: 'Operative Neurosurgery', url: 'https://journals.lww.com/onsonline/fulltext/9900/motion_tracking_analysis_of_robotic_versus.1841.aspx' },
-    { title: 'Using the Maximum Surgical Exposure of Pretemporal Transcavernous Approach in the Vertical Plane: Clipping of Midline Aneurysms', journal: 'Operative Neurosurgery', url: 'https://journals.lww.com/onsonline/fulltext/9900/using_the_maximum_surgical_exposure_of_pretemporal.1857.aspx' },
+    { title: 'Using the Maximum Surgical Exposure of Pretemporal Transcavernous Approach: Clipping of Midline Aneurysms', journal: 'Operative Neurosurgery', url: 'https://journals.lww.com/onsonline/fulltext/9900/using_the_maximum_surgical_exposure_of_pretemporal.1857.aspx' },
     { title: 'Contralateral Far-Lateral Transcondylar Approach for Clipping of a Ruptured Anterior Spinal Artery Aneurysm', journal: 'Operative Neurosurgery', url: 'https://journals.lww.com/onsonline/fulltext/9900/contralateral_far_lateral_transcondylar_approach.1861.aspx' },
     { title: 'Expanded Endoscopic Endonasal Transpterygoid Transclival Approach With Interdural Pituitary Hemitransposition', journal: 'Operative Neurosurgery', url: 'https://journals.lww.com/onsonline/fulltext/9900/expanded_endoscopic_endonasal_transpterygoid.1863.aspx' },
     { title: 'Dual-Lumen Balloon-Assisted Onyx Embolization of Dural Arteriovenous Fistulas', journal: 'Operative Neurosurgery', url: 'https://journals.lww.com/onsonline/fulltext/9900/dual_lumen_balloon_assisted_onyx_embolization_of.1864.aspx' },
-    { title: 'Comparative Outcomes of Intraoperative Neurophysiological Monitoring Modalities in Microsurgical Clipping of Unruptured Intracranial Aneurysms', journal: 'Operative Neurosurgery', url: 'https://journals.lww.com/onsonline/fulltext/9900/comparative_outcomes_of_intraoperative.1865.aspx' },
+    { title: 'Comparative Outcomes of Intraoperative Neurophysiological Monitoring in Microsurgical Clipping of Unruptured Intracranial Aneurysms', journal: 'Operative Neurosurgery', url: 'https://journals.lww.com/onsonline/fulltext/9900/comparative_outcomes_of_intraoperative.1865.aspx' },
     { title: 'Novel Surrogate Indicators of Intracranial Meningioma Consistency and Outcomes After Resection', journal: 'Operative Neurosurgery', url: 'https://journals.lww.com/onsonline/fulltext/9900/novel_surrogate_indicators_of_intracranial.1867.aspx' },
     { title: 'Skull Base Virtual Reality Surgical Simulator Integrating Multilayered 3D Photorealistic Anatomic Models', journal: 'Operative Neurosurgery', url: 'https://journals.lww.com/onsonline/fulltext/9900/skull_base_virtual_reality_surgical_simulator.1854.aspx' },
     { title: '3D Skull Base Reconstruction Using Publicly Available Foundational AI Models and Endoscope Video', journal: 'Neurosurgery', url: 'https://journals.lww.com/neurosurgery/abstract/2025/04001/325_3d_skull_base_reconstruction_using_publicly.166.aspx' },
@@ -214,7 +203,7 @@ const LifeDashboard = () => {
     { title: 'Added Value of Adjunctive Middle Meningeal Embolization to Surgical Evacuation for Chronic Subdural Hematoma', journal: 'Neurosurgery', url: 'https://journals.lww.com/neurosurgery/fulltext/2026/02000/added_value_of_adjunctive_middle_meningeal.9.aspx' },
     { title: 'Long-Term Outcomes of Surgical Clipping of Woven EndoBridge-Eligible Middle Cerebral Artery Bifurcation Aneurysms', journal: 'Operative Neurosurgery', url: 'https://journals.lww.com/onsonline/fulltext/2026/01000/long_term_outcomes_of_surgical_clipping_of_woven.3.aspx' },
     { title: 'ChatGPT-4 in Neurosurgery: Improving Patient Education Materials', journal: 'Neurosurgery', url: 'https://journals.lww.com/neurosurgery/fulltext/2026/01000/chatgpt_4_in_neurosurgery__improving_patient.15.aspx' },
-    { title: 'Assessing Neurosurgery Training: Accreditation Council for Graduate Medical Education Case Minimums Versus Surgical Autonomy', journal: 'Neurosurgery', url: 'https://journals.lww.com/neurosurgery/fulltext/2025/06000/assessing_neurosurgery_training__accreditation.19.aspx' },
+    { title: 'Assessing Neurosurgery Training: ACGME Case Minimums Versus Surgical Autonomy', journal: 'Neurosurgery', url: 'https://journals.lww.com/neurosurgery/fulltext/2025/06000/assessing_neurosurgery_training__accreditation.19.aspx' },
     { title: 'Toward Precision Education in Neurosurgical Training: Cognitive Load Estimation via Pupil Diameter', journal: 'Neurosurgery', url: 'https://journals.lww.com/neurosurgery/abstract/2025/04001/2055_toward_precision_education_in_neurosurgical.663.aspx' },
     { title: 'Feeder Artery Aneurysms in Cerebral Arteriovenous Malformations', journal: 'Neurosurgery', url: 'https://journals.lww.com/neurosurgery/fulltext/2026/01000/feeder_artery_aneurysms_in_cerebral_arteriovenous.9.aspx' },
     { title: 'Application of the Horizontal Mattress Techniques in Side-to-Side Microvascular Anastomoses', journal: 'Neurosurgery Practice', url: 'https://journals.lww.com/neurosurgpraconline/fulltext/2026/03000/application_of_the_horizontal_mattress_techniques.5.aspx' },
@@ -260,6 +249,7 @@ const LifeDashboard = () => {
     return () => window.removeEventListener('resize', h);
   }, []);
 
+  // ── Helpers ──
   const exportData = () => {
     const data = { habits, weeklyTasks, monthlyGoals, researchProjects, researchHistory, brainstormEntries, brainstormHistory, articleHistory, lastArticleDate, dailyArticle, lastWeeklyReset, lastMonthlyReset, lastHabitDate, studyApproach, studyPathology, studyRhoton, exportDate: new Date().toISOString() };
     const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
@@ -352,7 +342,6 @@ const LifeDashboard = () => {
     }
   };
 
-  // Brainstorm + subnotes
   const addBrainstorm = () => {
     if (newBrainstorm.trim()) {
       const entry = { id: Date.now(), date: new Date().toISOString(), text: newBrainstorm, subnotes: [] };
@@ -384,80 +373,302 @@ const LifeDashboard = () => {
 
   const toggleStudyItem = (setter, id) => setter(prev => prev.map(item => item.id === id ? { ...item, done: !item.done } : item));
 
-  // Study list: undone first, done at bottom with strikethrough (same as weekly tasks)
+  // ── Shared renderers ──
   const renderStudyList = (items, setter, label) => {
     const undone = items.filter(i => !i.done);
     const done = items.filter(i => i.done);
     return (
       <div style={{ marginBottom: '0.8rem' }}>
         <div style={{ fontSize: '0.6rem', textTransform: 'uppercase', letterSpacing: '1.5px', color: C.accentLight, marginBottom: '0.4rem', display: 'flex', justifyContent: 'space-between', opacity: 0.8 }}>
-          <span>{label}</span>
-          <span style={{ color: C.textFaint }}>{done.length}/{items.length}</span>
+          <span>{label}</span><span style={{ color: C.textFaint }}>{done.length}/{items.length}</span>
         </div>
         {undone.map(item => (
           <div key={item.id} onClick={() => toggleStudyItem(setter, item.id)}
-            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.35rem 0.5rem', background: C.itemBg, borderRadius: 4, marginBottom: '0.2rem', cursor: 'pointer' }}>
-            <div style={{ width: 11, height: 11, border: `2px solid ${C.accent}`, borderRadius: 3, background: 'transparent', flexShrink: 0 }} />
-            <span style={{ fontSize: '0.72rem', color: C.text, lineHeight: 1.3 }}>{item.text}</span>
+            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.6rem', background: C.itemBg, borderRadius: 6, marginBottom: '0.3rem', cursor: 'pointer', minHeight: 44 }}>
+            <div style={{ width: 14, height: 14, border: `2px solid ${C.accent}`, borderRadius: 3, background: 'transparent', flexShrink: 0 }} />
+            <span style={{ fontSize: '0.82rem', color: C.text, lineHeight: 1.3 }}>{item.text}</span>
           </div>
         ))}
         {done.map(item => (
           <div key={item.id} onClick={() => toggleStudyItem(setter, item.id)}
-            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.35rem 0.5rem', background: 'rgba(74,144,217,0.06)', borderRadius: 4, marginBottom: '0.2rem', cursor: 'pointer', opacity: 0.5 }}>
-            <div style={{ width: 11, height: 11, border: `2px solid ${C.accent}`, borderRadius: 3, background: C.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <Check size={7} color="#fff" />
+            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.6rem', background: 'rgba(74,144,217,0.06)', borderRadius: 6, marginBottom: '0.3rem', cursor: 'pointer', opacity: 0.5, minHeight: 44 }}>
+            <div style={{ width: 14, height: 14, border: `2px solid ${C.accent}`, borderRadius: 3, background: C.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <Check size={8} color="#fff" />
             </div>
-            <span style={{ fontSize: '0.72rem', color: C.textMuted, lineHeight: 1.3, textDecoration: 'line-through' }}>{item.text}</span>
+            <span style={{ fontSize: '0.82rem', color: C.textMuted, lineHeight: 1.3, textDecoration: 'line-through' }}>{item.text}</span>
           </div>
         ))}
       </div>
     );
   };
 
-  // Brainstorm entry renderer (current + history)
   const renderBrainstormEntry = (entry, fromHistory = false) => (
-    <div key={entry.id} style={{ background: fromHistory ? 'rgba(74,144,217,0.08)' : 'rgba(74,144,217,0.15)', borderLeft: `3px solid ${fromHistory ? 'rgba(74,144,217,0.3)' : C.accent}`, borderRadius: 5, padding: '0.7rem', marginBottom: '0.5rem' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3rem' }}>
-        <div style={{ fontSize: '0.65rem', color: C.textMuted }}>{new Date(entry.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>
-        <div style={{ display: 'flex', gap: '0.3rem' }}>
+    <div key={entry.id} style={{ background: fromHistory ? 'rgba(74,144,217,0.08)' : 'rgba(74,144,217,0.15)', borderLeft: `3px solid ${fromHistory ? 'rgba(74,144,217,0.3)' : C.accent}`, borderRadius: 6, padding: '0.75rem', marginBottom: '0.5rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+        <div style={{ fontSize: '0.7rem', color: C.textMuted }}>{new Date(entry.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>
+        <div style={{ display: 'flex', gap: '0.4rem' }}>
           <button onClick={() => setActiveSubnoteInput(prev => ({ ...prev, [entry.id]: !prev[entry.id] }))}
-            style={{ background: 'rgba(74,144,217,0.25)', border: 'none', borderRadius: 4, padding: '0.15rem 0.35rem', color: C.accentLight, cursor: 'pointer', fontSize: '0.6rem', fontWeight: '600' }}>+ note</button>
+            style={{ background: 'rgba(74,144,217,0.25)', border: 'none', borderRadius: 4, padding: '0.2rem 0.4rem', color: C.accentLight, cursor: 'pointer', fontSize: '0.65rem', fontWeight: '600' }}>+ note</button>
           <button onClick={() => deleteBrainstorm(entry.id, fromHistory)}
-            style={{ background: 'rgba(74,144,217,0.2)', border: 'none', borderRadius: 4, padding: '0.15rem 0.3rem', color: C.text, cursor: 'pointer' }}><Trash2 size={fromHistory ? 8 : 10} /></button>
+            style={{ background: 'rgba(74,144,217,0.2)', border: 'none', borderRadius: 4, padding: '0.2rem 0.35rem', color: C.text, cursor: 'pointer' }}><Trash2 size={fromHistory ? 9 : 11} /></button>
         </div>
       </div>
-      <div style={{ fontSize: fromHistory ? '0.7rem' : '0.75rem', lineHeight: '1.4', color: fromHistory ? C.textMuted : 'rgba(232,241,252,0.9)', wordWrap: 'break-word', whiteSpace: 'pre-wrap' }}>{entry.text}</div>
-
-      {/* Subnotes */}
+      <div style={{ fontSize: fromHistory ? '0.78rem' : '0.85rem', lineHeight: '1.5', color: fromHistory ? C.textMuted : 'rgba(232,241,252,0.9)', wordWrap: 'break-word', whiteSpace: 'pre-wrap' }}>{entry.text}</div>
       {(entry.subnotes || []).length > 0 && (
         <div style={{ marginTop: '0.5rem', paddingTop: '0.4rem', borderTop: '1px solid rgba(74,144,217,0.2)' }}>
           {(entry.subnotes || []).map(note => (
             <div key={note.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.4rem', marginBottom: '0.3rem', paddingLeft: '0.5rem', borderLeft: '2px solid rgba(74,144,217,0.3)' }}>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: '0.6rem', color: C.textFaint, marginBottom: '0.1rem' }}>{new Date(note.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>
-                <div style={{ fontSize: '0.7rem', color: C.textMuted, lineHeight: 1.3, wordWrap: 'break-word', whiteSpace: 'pre-wrap' }}>{note.text}</div>
+                <div style={{ fontSize: '0.65rem', color: C.textFaint, marginBottom: '0.1rem' }}>{new Date(note.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>
+                <div style={{ fontSize: '0.78rem', color: C.textMuted, lineHeight: 1.4, wordWrap: 'break-word', whiteSpace: 'pre-wrap' }}>{note.text}</div>
               </div>
-              <button onClick={() => deleteSubnote(entry.id, note.id, fromHistory)} style={{ background: 'none', border: 'none', color: C.textFaint, cursor: 'pointer', padding: 0, flexShrink: 0 }}><Trash2 size={8} /></button>
+              <button onClick={() => deleteSubnote(entry.id, note.id, fromHistory)} style={{ background: 'none', border: 'none', color: C.textFaint, cursor: 'pointer', padding: 0, flexShrink: 0 }}><Trash2 size={9} /></button>
             </div>
           ))}
         </div>
       )}
-
-      {/* Subnote input */}
       {activeSubnoteInput[entry.id] && (
-        <div style={{ marginTop: '0.4rem', display: 'flex', gap: '0.3rem' }}>
+        <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.3rem' }}>
           <input type="text" value={subnoteText[entry.id] || ''} onChange={e => setSubnoteText(prev => ({ ...prev, [entry.id]: e.target.value }))} onKeyPress={e => { if (e.key === 'Enter') addSubnote(entry.id, fromHistory); }} placeholder="Add a note..." autoFocus
-            style={{ flex: 1, padding: '0.3rem 0.4rem', background: 'rgba(0,0,0,0.3)', border: `1px solid ${C.border}`, borderRadius: 4, color: C.text, fontSize: '0.7rem', fontFamily: 'inherit' }} />
-          <button onClick={() => addSubnote(entry.id, fromHistory)} style={{ padding: '0.3rem 0.5rem', background: C.accent, border: 'none', borderRadius: 4, color: '#fff', cursor: 'pointer', fontSize: '0.65rem', fontWeight: '600' }}>Add</button>
-          <button onClick={() => setActiveSubnoteInput(prev => ({ ...prev, [entry.id]: false }))} style={{ padding: '0.3rem 0.5rem', background: 'rgba(0,0,0,0.3)', border: `1px solid ${C.border}`, borderRadius: 4, color: C.textMuted, cursor: 'pointer', fontSize: '0.65rem' }}>✕</button>
+            style={{ flex: 1, padding: '0.45rem 0.5rem', background: 'rgba(0,0,0,0.3)', border: `1px solid ${C.border}`, borderRadius: 6, color: C.text, fontSize: '0.82rem', fontFamily: 'inherit' }} />
+          <button onClick={() => addSubnote(entry.id, fromHistory)} style={{ padding: '0.45rem 0.6rem', background: C.accent, border: 'none', borderRadius: 6, color: '#fff', cursor: 'pointer', fontSize: '0.75rem', fontWeight: '600' }}>Add</button>
+          <button onClick={() => setActiveSubnoteInput(prev => ({ ...prev, [entry.id]: false }))} style={{ padding: '0.45rem 0.55rem', background: 'rgba(0,0,0,0.3)', border: `1px solid ${C.border}`, borderRadius: 6, color: C.textMuted, cursor: 'pointer', fontSize: '0.75rem' }}>✕</button>
         </div>
       )}
     </div>
   );
 
-  const weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  // ── Day column (shared between mobile day-switcher and desktop) ──
+  const renderDayColumn = (day) => {
+    const tasks = weeklyTasks[day] || [];
+    const sorted = [...tasks].sort((a, b) => {
+      if (a.done !== b.done) return a.done ? 1 : -1;
+      if (a.priority !== b.priority) return a.priority ? -1 : 1;
+      return 0;
+    });
+    return (
+      <div style={{ padding: isMobile ? '0' : '0.5rem', background: isMobile ? 'transparent' : 'rgba(0,0,0,0.2)', borderRadius: isMobile ? 0 : 6, border: isMobile ? 'none' : `1px solid ${C.border}`, display: 'flex', flexDirection: 'column', gap: '0.3rem' }}
+        onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); handleDrop(day); }}>
+        {!showTaskInput[day] ? (
+          <button onClick={() => setShowTaskInput(prev => ({ ...prev, [day]: true }))}
+            style={{ width: '100%', padding: isMobile ? '0.55rem' : '0.3rem', background: 'rgba(74,144,217,0.2)', border: `1px solid ${C.border}`, borderRadius: 6, color: C.accentLight, cursor: 'pointer', fontSize: isMobile ? '0.85rem' : '0.65rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.3rem', minHeight: isMobile ? 44 : 'auto' }}>
+            <Plus size={isMobile ? 13 : 10} /> {isMobile ? 'Add task' : ''}
+          </button>
+        ) : (
+          <div>
+            <input type="text" value={newTaskInput[day] || ''} onChange={e => setNewTaskInput(prev => ({ ...prev, [day]: e.target.value }))} onKeyPress={e => { if (e.key === 'Enter') saveTaskToDay(day); }} placeholder="Task..." autoFocus
+              style={{ width: '100%', padding: isMobile ? '0.55rem 0.6rem' : '0.3rem', background: 'rgba(0,0,0,0.3)', border: `1px solid ${C.border}`, borderRadius: 6, color: C.text, fontSize: isMobile ? '1rem' : '0.65rem', marginBottom: '0.3rem', fontFamily: 'inherit' }} />
+            <div style={{ display: 'flex', gap: '0.3rem' }}>
+              <button onClick={() => saveTaskToDay(day)} style={{ flex: 1, padding: isMobile ? '0.5rem' : '0.2rem', background: 'rgba(74,144,217,0.4)', border: 'none', borderRadius: 5, color: '#fff', cursor: 'pointer', fontSize: isMobile ? '0.85rem' : '0.6rem' }}>Add</button>
+              <button onClick={() => { setNewTaskInput(prev => ({ ...prev, [day]: '' })); setShowTaskInput(prev => ({ ...prev, [day]: false })); }} style={{ flex: 1, padding: isMobile ? '0.5rem' : '0.2rem', background: 'rgba(0,0,0,0.3)', border: `1px solid ${C.border}`, borderRadius: 5, color: C.textMuted, cursor: 'pointer', fontSize: isMobile ? '0.85rem' : '0.6rem' }}>✕</button>
+            </div>
+          </div>
+        )}
+        {sorted.map(task => (
+          <div key={task.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.4rem', padding: isMobile ? '0.65rem 0.6rem' : '0.4rem', background: C.itemBg, borderRadius: 6, fontSize: isMobile ? '0.88rem' : '0.7rem', cursor: 'move', minHeight: isMobile ? 44 : 'auto' }}
+            draggable onDragStart={e => { e.stopPropagation(); setDraggedTask({ day, task }); }}>
+            <button onClick={e => { e.stopPropagation(); setWeeklyTasks(prev => ({ ...prev, [day]: prev[day].map(t => t.id === task.id ? { ...t, priority: !t.priority } : t) })); }} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', flexShrink: 0, paddingTop: '2px' }}>
+              <Star size={isMobile ? 11 : 9} fill={task.priority ? '#7EB8F7' : 'none'} color={task.priority ? '#7EB8F7' : 'rgba(180,210,245,0.3)'} />
+            </button>
+            <div onClick={e => { e.stopPropagation(); setWeeklyTasks(prev => ({ ...prev, [day]: prev[day].map(t => t.id === task.id ? { ...t, done: !t.done } : t) })); }}
+              style={{ width: isMobile ? 16 : 11, height: isMobile ? 16 : 11, border: `2px solid ${C.accent}`, borderRadius: 3, display: 'flex', alignItems: 'center', justifyContent: 'center', background: task.done ? C.accent : 'transparent', cursor: 'pointer', flexShrink: 0, marginTop: '2px' }}>
+              {task.done && <Check size={isMobile ? 9 : 7} color="#fff" />}
+            </div>
+            <span style={{ flex: 1, textDecoration: task.done ? 'line-through' : 'none', opacity: task.done ? 0.55 : 1, lineHeight: '1.3', wordBreak: 'break-word' }}>{task.text}</span>
+            <button onClick={e => { e.stopPropagation(); setWeeklyTasks(prev => ({ ...prev, [day]: prev[day].filter(t => t.id !== task.id) })); }} style={{ background: 'none', border: 'none', color: C.textMuted, cursor: 'pointer', padding: 0, flexShrink: 0 }}><Trash2 size={isMobile ? 12 : 9} /></button>
+          </div>
+        ))}
+      </div>
+    );
+  };
 
-  return (
+  // ── MOBILE LAYOUT ──
+  const renderMobile = () => {
+    const allDone = Object.values(habits).every(h => h.today);
+    const doneCount = Object.values(habits).filter(h => h.today).length;
+    const totalTasks = Object.values(weeklyTasks).flat().length;
+    const doneTasks = Object.values(weeklyTasks).flat().filter(t => t.done).length;
+    const totalStudy = [...studyApproach, ...studyPathology, ...studyRhoton].length;
+    const doneStudy = [...studyApproach, ...studyPathology, ...studyRhoton].filter(i => i.done).length;
+
+    return (
+      <div style={{ minHeight: '100vh', background: `linear-gradient(160deg, ${C.bg1} 0%, #0A1628 100%)`, color: C.text, fontFamily: '"Work Sans", sans-serif', padding: '0', paddingBottom: '2rem' }}>
+        <style>{`
+          @import url('https://fonts.googleapis.com/css2?family=Crimson+Pro:wght@400;600;700&family=Work+Sans:wght@300;400;500;600&display=swap');
+          * { box-sizing: border-box; margin: 0; padding: 0; }
+          input, textarea, button { font-family: 'Work Sans', sans-serif; }
+          .mob-input { width: 100%; padding: 0.65rem 0.75rem; background: rgba(0,0,0,0.35); border: 1px solid rgba(74,144,217,0.35); border-radius: 8px; color: #E8F1FC; font-size: 1rem; }
+          .mob-input:focus { outline: none; border-color: #7EB8F7; }
+          .mob-btn-primary { display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem; padding: 0.65rem 1rem; background: linear-gradient(135deg,#4A90D9,#2E6FBB); border: none; border-radius: 8px; color: #fff; font-weight: 600; cursor: pointer; font-size: 0.9rem; }
+          .mob-btn-ghost { padding: 0.65rem 1rem; background: rgba(74,144,217,0.12); border: 1px solid rgba(74,144,217,0.3); border-radius: 8px; color: #7EB8F7; cursor: pointer; font-size: 0.85rem; }
+          .day-pill { padding: 0.45rem 0.7rem; border-radius: 20px; font-size: 0.78rem; font-weight: 600; cursor: pointer; border: 1.5px solid transparent; transition: all 0.15s; white-space: nowrap; min-height: 36px; display: flex; align-items: center; }
+          .day-pill.active { background: #4A90D9; color: #fff; border-color: #4A90D9; }
+          .day-pill.inactive { background: rgba(74,144,217,0.1); color: rgba(232,241,252,0.6); border-color: rgba(74,144,217,0.2); }
+          .day-pill.has-tasks { border-color: rgba(74,144,217,0.5); color: rgba(232,241,252,0.85); }
+        `}</style>
+
+        {/* Mobile header */}
+        <div style={{ padding: '1rem 1rem 0.6rem', background: 'rgba(0,0,0,0.3)', borderBottom: `1px solid ${C.border}`, position: 'sticky', top: 0, zIndex: 50, backdropFilter: 'blur(12px)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+            <div>
+              <div style={{ fontSize: '0.6rem', textTransform: 'uppercase', letterSpacing: '1.5px', color: C.textMuted }}>Dashboard</div>
+              <div style={{ fontFamily: '"Crimson Pro", serif', fontSize: '1rem', fontWeight: '600', color: C.accentLight }}>
+                {today.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
+              </div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: '0.6rem', color: C.textMuted, textTransform: 'uppercase', letterSpacing: '1px' }}>Surgery</div>
+              <div style={{ fontSize: '0.85rem', fontWeight: '600', color: C.accentLight }}>{weeksSinceSurgery}w {remainderDays}d</div>
+            </div>
+          </div>
+          {/* Mini countdowns row */}
+          <div style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto', paddingBottom: '0.3rem' }}>
+            {countdowns.map(c => (
+              <div key={c.label} style={{ flexShrink: 0, background: 'rgba(74,144,217,0.12)', border: `1px solid ${C.border}`, borderRadius: 8, padding: '0.3rem 0.6rem', textAlign: 'center' }}>
+                <div style={{ fontSize: '0.55rem', textTransform: 'uppercase', letterSpacing: '1px', color: C.textMuted }}>{c.label}</div>
+                <div style={{ fontSize: '0.78rem', fontWeight: '600', color: C.accentLight }}>{c.days}d</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Sections */}
+        <div style={{ padding: '0.75rem' }}>
+
+          {/* 1. THE WEEK */}
+          <Accordion title="The Week" defaultOpen={true} badge={`${doneTasks}/${totalTasks}`}>
+            {/* Day switcher */}
+            <div style={{ display: 'flex', gap: '0.4rem', overflowX: 'auto', paddingBottom: '0.6rem', marginBottom: '0.75rem', borderBottom: `1px solid ${C.border}` }}>
+              {weekDays.map((day, i) => {
+                const d = new Date(); d.setDate(d.getDate() - d.getDay() + (i === 6 ? 0 : i + 1));
+                const hasTasks = (weeklyTasks[day] || []).length > 0;
+                const isToday = day === todayKey;
+                const isSelected = day === selectedDay;
+                return (
+                  <button key={day} onClick={() => setSelectedDay(day)}
+                    className={`day-pill ${isSelected ? 'active' : hasTasks ? 'has-tasks' : 'inactive'}`}
+                    style={{ background: isSelected ? '#4A90D9' : isToday ? 'rgba(74,144,217,0.2)' : 'rgba(74,144,217,0.1)', borderColor: isSelected ? '#4A90D9' : isToday ? '#4A90D9' : 'rgba(74,144,217,0.2)', color: isSelected ? '#fff' : isToday ? C.accentLight : 'rgba(232,241,252,0.6)' }}>
+                    <span>{day}</span>
+                    {isToday && !isSelected && <span style={{ display: 'block', width: 4, height: 4, background: C.accent, borderRadius: '50%', marginLeft: '0.3rem' }} />}
+                  </button>
+                );
+              })}
+            </div>
+            {/* Selected day tasks */}
+            <div style={{ marginBottom: '0.5rem' }}>
+              <div style={{ fontSize: '0.7rem', color: C.textMuted, marginBottom: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontWeight: '600', color: C.accentLight }}>{selectedDay}{selectedDay === todayKey ? ' — Today' : ''}</span>
+                <span>{(weeklyTasks[selectedDay] || []).filter(t => t.done).length}/{(weeklyTasks[selectedDay] || []).length} done</span>
+              </div>
+              {renderDayColumn(selectedDay)}
+            </div>
+          </Accordion>
+
+          {/* 2. THE DAY (habits) */}
+          <Accordion title="The Day" defaultOpen={true} badge={`${doneCount}/6`} accentColor={allDone ? '#7EB8F7' : C.accentLight}>
+            {allDone && <div style={{ textAlign: 'center', fontSize: '1.5rem', marginBottom: '0.5rem' }}>🎉 All done!</div>}
+            {Object.keys(habits).map(key => (
+              <div key={key} onClick={() => toggleHabit(key)}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem 0.8rem', background: habits[key].today ? 'rgba(74,144,217,0.3)' : C.itemBg, borderRadius: 8, marginBottom: '0.4rem', cursor: 'pointer', borderLeft: habits[key].today ? `3px solid ${C.accent}` : '3px solid transparent', minHeight: 52, transition: 'all 0.2s' }}>
+                <span style={{ fontSize: '1.2rem' }}>{habitIcons[key]}</span>
+                <span style={{ flex: 1, fontSize: '0.9rem', textDecoration: habits[key].today ? 'line-through' : 'none', opacity: habits[key].today ? 0.7 : 1 }}>{habitLabels[key]}</span>
+                {habits[key].streak > 0 && <span style={{ background: 'linear-gradient(135deg,#4A90D9,#2E6FBB)', color: '#fff', padding: '0.2rem 0.5rem', borderRadius: 12, fontSize: '0.75rem', fontWeight: '600' }}>{habits[key].streak} 🔥</span>}
+              </div>
+            ))}
+          </Accordion>
+
+          {/* 3. BRAINSTORM */}
+          <Accordion title="Brainstorm" defaultOpen={false} badge={brainstormEntries.length > 0 ? `${brainstormEntries.length} active` : undefined}>
+            <textarea value={newBrainstorm} onChange={e => setNewBrainstorm(e.target.value)} placeholder="New idea..."
+              style={{ width: '100%', padding: '0.75rem', background: 'rgba(0,0,0,0.35)', border: `1px solid ${C.border}`, borderRadius: 8, color: C.text, fontSize: '1rem', fontFamily: 'inherit', resize: 'none', height: 90, marginBottom: '0.5rem' }} />
+            <button onClick={addBrainstorm} className="mob-btn-primary" style={{ width: '100%', marginBottom: '0.75rem' }}><Plus size={14} /> Add</button>
+            {brainstormEntries.map(e => renderBrainstormEntry(e, false))}
+            {brainstormHistory.length > 0 && (
+              <div style={{ marginTop: '0.5rem', borderTop: `1px solid ${C.border}`, paddingTop: '0.6rem' }}>
+                <button onClick={() => setShowHistory(!showHistory)} className="mob-btn-ghost" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.3rem' }}>
+                  {showHistory ? '▼' : '▶'} History ({brainstormHistory.length})
+                </button>
+                {showHistory && <div style={{ marginTop: '0.6rem' }}>{brainstormHistory.map(e => renderBrainstormEntry(e, true))}</div>}
+              </div>
+            )}
+          </Accordion>
+
+          {/* 4. ART & COUNTDOWNS */}
+          <Accordion title="Art & Countdowns" defaultOpen={false}>
+            {/* Countdowns grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '0.5rem', marginBottom: '1rem' }}>
+              {countdowns.map(c => (
+                <div key={c.label} style={{ background: C.itemBg, border: `1px solid ${C.border}`, borderRadius: 8, padding: '0.6rem', textAlign: 'center' }}>
+                  <div style={{ fontSize: '0.6rem', textTransform: 'uppercase', letterSpacing: '1px', color: C.textMuted, marginBottom: '0.2rem' }}>{c.label}</div>
+                  <div style={{ fontSize: '1.1rem', fontWeight: '700', color: C.accentLight, fontFamily: '"Crimson Pro", serif' }}>{c.days}</div>
+                  <div style={{ fontSize: '0.6rem', color: C.textFaint }}>days</div>
+                </div>
+              ))}
+            </div>
+            {/* Art content */}
+            {dailyContent && (
+              <div style={{ background: C.itemBg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '1rem' }}>
+                <h3 style={{ fontFamily: '"Crimson Pro", serif', fontSize: '1.05rem', fontWeight: '600', marginBottom: '0.25rem', color: C.accentLight }}>{dailyContent.name}</h3>
+                <div style={{ fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '1px', color: C.textMuted, marginBottom: '0.6rem' }}>{dailyContent.type} · {dailyContent.contentType}</div>
+                <p style={{ fontSize: '0.9rem', fontStyle: 'italic', lineHeight: '1.5', color: 'rgba(232,241,252,0.9)', marginBottom: '0.6rem' }}>"{dailyContent.content}"</p>
+                <p style={{ fontSize: '0.8rem', lineHeight: '1.5', color: C.textMuted }}>{dailyContent.context}</p>
+              </div>
+            )}
+          </Accordion>
+
+          {/* 5. NEUROSURGERY */}
+          <Accordion title="Neurosurgery" defaultOpen={false} badge={articleHistory.length > 0 ? `${articleHistory.length} read` : undefined}>
+            {dailyArticle && (
+              <div>
+                <a href={dailyArticle.url} target="_blank" rel="noopener noreferrer"
+                  style={{ display: 'block', padding: '0.85rem', background: C.itemBg, borderLeft: `3px solid ${C.accent}`, borderRadius: 8, marginBottom: '0.6rem', textDecoration: 'none', color: 'inherit' }}>
+                  <div style={{ fontSize: '0.88rem', fontWeight: '500', lineHeight: '1.4', color: C.text, marginBottom: '0.3rem' }}>{dailyArticle.title}</div>
+                  <div style={{ fontSize: '0.72rem', color: C.textMuted, fontStyle: 'italic' }}>{dailyArticle.journal}</div>
+                </a>
+                <button onClick={markArticleRead} className="mob-btn-ghost" style={{ width: '100%', marginBottom: '0.5rem' }}>Mark as Read ✓</button>
+                {articleHistory.length > 0 && (
+                  <>
+                    <button onClick={() => setShowArticleHistory(!showArticleHistory)} className="mob-btn-ghost" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.3rem', marginBottom: showArticleHistory ? '0.5rem' : 0 }}>
+                      {showArticleHistory ? '▼' : '▶'} History ({articleHistory.length})
+                    </button>
+                    {showArticleHistory && articleHistory.map((article, i) => (
+                      <div key={i} style={{ background: C.itemBg, borderLeft: `2px solid ${C.border}`, borderRadius: 6, padding: '0.6rem', marginBottom: '0.3rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: '0.78rem', fontWeight: '500', lineHeight: '1.3', marginBottom: '0.2rem' }}>{article.title}</div>
+                            <div style={{ fontSize: '0.65rem', color: C.textFaint }}>{new Date(article.readDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>
+                          </div>
+                          <button onClick={() => setArticleHistory(prev => prev.filter((_, j) => j !== i))} style={{ background: 'none', border: 'none', color: C.textFaint, cursor: 'pointer' }}><Trash2 size={11} /></button>
+                        </div>
+                      </div>
+                    ))}
+                  </>
+                )}
+              </div>
+            )}
+          </Accordion>
+
+          {/* 6. STUDY */}
+          <Accordion title="Study" defaultOpen={false} badge={`${doneStudy}/${totalStudy}`}>
+            {renderStudyList(studyApproach, setStudyApproach, 'Approach')}
+            <div style={{ height: '1px', background: C.border, margin: '0.6rem 0' }} />
+            {renderStudyList(studyPathology, setStudyPathology, 'Pathology')}
+            <div style={{ height: '1px', background: C.border, margin: '0.6rem 0' }} />
+            {renderStudyList(studyRhoton, setStudyRhoton, 'Rhoton')}
+          </Accordion>
+
+          {/* Utilities */}
+          <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+            <button onClick={exportData} className="mob-btn-ghost" style={{ flex: 1 }}>Export</button>
+            <button onClick={importData} className="mob-btn-ghost" style={{ flex: 1 }}>Import</button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // ── DESKTOP LAYOUT ──
+  const renderDesktop = () => (
     <div style={{ width: '100vw', height: '100vh', background: `linear-gradient(135deg, ${C.bg1} 0%, #0A1628 100%)`, color: C.text, fontFamily: '"Work Sans", sans-serif', padding: '1.5rem', overflow: 'auto', boxSizing: 'border-box' }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Crimson+Pro:wght@400;600;700&family=Work+Sans:wght@300;400;500;600&display=swap');
@@ -472,23 +683,22 @@ const LifeDashboard = () => {
         .habit-item:hover { background: ${C.itemBgHover}; transform: translateX(3px); }
         .habit-item.completed { background: ${C.itemBgDone}; border-left: 3px solid ${C.accent}; }
         .habit-item.completed .habit-label { text-decoration: line-through; opacity: 0.7; }
-        .streak-badge { background: linear-gradient(135deg, #4A90D9, #2E6FBB); color: #fff; padding: 0.2rem 0.45rem; border-radius: 10px; font-size: 0.7rem; font-weight: 600; margin-left: auto; }
+        .streak-badge { background: linear-gradient(135deg,#4A90D9,#2E6FBB); color: #fff; padding: 0.2rem 0.45rem; border-radius: 10px; font-size: 0.7rem; font-weight: 600; margin-left: auto; }
         .input-field, .textarea-field { width: 100%; padding: 0.6rem; background: rgba(0,0,0,0.3); border: 1px solid ${C.border}; border-radius: 6px; color: ${C.text}; font-family: 'Work Sans', sans-serif; font-size: 0.8rem; }
-        .input-field:focus, .textarea-field:focus { outline: none; border-color: ${C.accentLight}; background: rgba(0,0,0,0.4); }
+        .input-field:focus, .textarea-field:focus { outline: none; border-color: ${C.accentLight}; }
         .textarea-field { resize: none; height: 80px; }
-        .add-button { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.45rem 0.85rem; background: linear-gradient(135deg, #4A90D9, #2E6FBB); border: none; border-radius: 6px; color: #fff; font-weight: 500; cursor: pointer; transition: all 0.2s ease; margin-top: 0.4rem; font-size: 0.75rem; }
+        .add-button { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.45rem 0.85rem; background: linear-gradient(135deg,#4A90D9,#2E6FBB); border: none; border-radius: 6px; color: #fff; font-weight: 500; cursor: pointer; transition: all 0.2s; margin-top: 0.4rem; font-size: 0.75rem; }
         .add-button:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(74,144,217,0.35); }
-        .article-item { padding: 0.7rem; background: ${C.itemBg}; border-left: 3px solid ${C.accent}; border-radius: 4px; transition: all 0.2s ease; cursor: pointer; text-decoration: none; color: inherit; display: block; }
+        .article-item { padding: 0.7rem; background: ${C.itemBg}; border-left: 3px solid ${C.accent}; border-radius: 4px; transition: all 0.2s; cursor: pointer; text-decoration: none; color: inherit; display: block; }
         .article-item:hover { background: ${C.itemBgHover}; transform: translateX(3px); }
-        .link-button { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.45rem 0.75rem; background: ${C.itemBg}; border: 1px solid ${C.border}; border-radius: 6px; color: ${C.text}; text-decoration: none; font-size: 0.75rem; transition: all 0.2s ease; margin-right: 0.4rem; margin-bottom: 0.4rem; }
+        .link-button { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.45rem 0.75rem; background: ${C.itemBg}; border: 1px solid ${C.border}; border-radius: 6px; color: ${C.text}; text-decoration: none; font-size: 0.75rem; transition: all 0.2s; margin-right: 0.4rem; margin-bottom: 0.4rem; }
         .link-button:hover { background: ${C.itemBgHover}; transform: translateY(-2px); }
         .util-btn { width: 100%; background: ${C.itemBg}; border: 1px solid ${C.border}; border-radius: 5px; padding: 0.4rem; color: ${C.accentLight}; cursor: pointer; font-size: 0.6rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; transition: background 0.2s; }
         .util-btn:hover { background: ${C.itemBgHover}; }
       `}</style>
 
       <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
-
-        {/* HEADER */}
+        {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'stretch', marginBottom: '1rem', flexShrink: 0, gap: '1rem' }}>
           <div style={{ background: C.cardBg, padding: '0.75rem 1rem', borderRadius: 8, border: `1px solid ${C.border}`, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
             <div style={{ fontSize: '0.6rem', textTransform: 'uppercase', letterSpacing: '1px', color: C.textMuted, marginBottom: '0.15rem' }}>Since Surgery</div>
@@ -510,10 +720,9 @@ const LifeDashboard = () => {
           </div>
         </div>
 
-        {/* MAIN GRID */}
+        {/* Grid */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', flex: 1, minHeight: 0 }}>
-
-          {/* WEEK — full width */}
+          {/* Week — full width */}
           <div style={{ height: '50%', flexShrink: 0 }}>
             <div className="section-card" style={{ background: 'rgba(0,0,0,0.35)' }}>
               <div className="section-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -526,15 +735,15 @@ const LifeDashboard = () => {
                 </div>
               </div>
               <div className="section-content" style={{ display: 'flex', flexDirection: 'column' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(3,1fr)' : 'repeat(7,1fr)', gap: '0.4rem', marginBottom: '0.6rem', flexShrink: 0 }}>
-                  {weekDays.map((day, i) => { const d = new Date(); d.setDate(d.getDate() - d.getDay() + i + 1); return (
-                    <div key={day} style={{ padding: '0.3rem', background: 'rgba(74,144,217,0.08)', borderRadius: 5, textAlign: 'center' }}>
-                      <div style={{ fontSize: '0.65rem', fontWeight: '600', color: C.accentLight }}>{day}</div>
-                      <div style={{ fontSize: '0.6rem', color: C.textMuted, marginTop: '0.1rem' }}>{d.getMonth()+1}/{d.getDate()}</div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: '0.4rem', marginBottom: '0.6rem', flexShrink: 0 }}>
+                  {weekDays.map((day, i) => { const d = new Date(); d.setDate(d.getDate() - d.getDay() + (i === 6 ? 0 : i + 1)); return (
+                    <div key={day} style={{ padding: '0.3rem', background: day === todayKey ? 'rgba(74,144,217,0.18)' : 'rgba(74,144,217,0.08)', borderRadius: 5, textAlign: 'center', border: day === todayKey ? `1px solid ${C.accent}` : 'none' }}>
+                      <div style={{ fontSize: '0.65rem', fontWeight: '600', color: day === todayKey ? C.accentLight : C.textMuted }}>{day}</div>
+                      <div style={{ fontSize: '0.6rem', color: C.textFaint, marginTop: '0.1rem' }}>{d.getMonth()+1}/{d.getDate()}</div>
                     </div>
                   ); })}
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(3,1fr)' : 'repeat(7,1fr)', gap: '0.4rem', flex: 1, minHeight: 0 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: '0.4rem', flex: 1, minHeight: 0 }}>
                   {weekDays.map(day => (
                     <div key={day} style={{ minHeight: 0, height: '100%', overflow: 'auto', padding: '0.5rem', background: 'rgba(0,0,0,0.2)', borderRadius: 6, border: `1px solid ${C.border}`, display: 'flex', flexDirection: 'column' }}
                       onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); handleDrop(day); }}>
@@ -552,7 +761,7 @@ const LifeDashboard = () => {
                         </div>
                       )}
                       <div style={{ flex: 1, overflow: 'auto' }}>
-                        {weeklyTasks[day]?.sort((a, b) => { if (a.done !== b.done) return a.done ? 1 : -1; if (a.priority !== b.priority) return a.priority ? -1 : 1; return 0; }).map(task => (
+                        {(weeklyTasks[day] || []).sort((a, b) => { if (a.done !== b.done) return a.done ? 1 : -1; if (a.priority !== b.priority) return a.priority ? -1 : 1; return 0; }).map(task => (
                           <div key={task.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.25rem', padding: '0.4rem', background: C.itemBg, borderRadius: 4, marginBottom: '0.25rem', fontSize: '0.7rem', cursor: 'move' }}
                             draggable onDragStart={e => { e.stopPropagation(); setDraggedTask({ day, task }); }}>
                             <button onClick={e => { e.stopPropagation(); setWeeklyTasks(prev => ({ ...prev, [day]: prev[day].map(t => t.id === task.id ? { ...t, priority: !t.priority } : t) })); }} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', flexShrink: 0 }}>
@@ -573,15 +782,13 @@ const LifeDashboard = () => {
             </div>
           </div>
 
-          {/* THREE COLUMNS */}
-          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '240px 1fr 280px', gap: '1rem', flex: 1, minHeight: isMobile ? 'auto' : '600px' }}>
-
-            {/* LEFT */}
+          {/* Three columns */}
+          <div style={{ display: 'grid', gridTemplateColumns: '240px 1fr 280px', gap: '1rem', flex: 1, minHeight: '600px' }}>
+            {/* Left */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', minHeight: 0 }}>
               <div className="section-card" style={{ height: '385px', flexShrink: 0, background: Object.values(habits).every(h => h.today) ? 'rgba(74,144,217,0.15)' : 'rgba(0,0,0,0.35)', border: Object.values(habits).every(h => h.today) ? `2px solid ${C.accentLight}` : 'none', transition: 'all 0.3s' }}>
                 <div className="section-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span>THE DAY</span>
-                  {Object.values(habits).every(h => h.today) && <span style={{ fontSize: '1.2rem' }}>🎉</span>}
+                  <span>THE DAY</span>{Object.values(habits).every(h => h.today) && <span style={{ fontSize: '1.2rem' }}>🎉</span>}
                 </div>
                 <div className="section-content" style={{ overflowY: 'hidden' }}>
                   {Object.keys(habits).map(key => (
@@ -593,7 +800,6 @@ const LifeDashboard = () => {
                   ))}
                 </div>
               </div>
-
               <div className="section-card" style={{ height: '120px', flexShrink: 0 }}>
                 <div className="section-title">LINKS</div>
                 <div className="section-content" style={{ overflowY: 'hidden' }}>
@@ -602,10 +808,8 @@ const LifeDashboard = () => {
                   <a href="https://substack.com" target="_blank" rel="noopener noreferrer" className="link-button"><ExternalLink size={11} />Substack</a>
                 </div>
               </div>
-
               <button onClick={exportData} className="util-btn">Export Backup</button>
               <button onClick={importData} className="util-btn" style={{ marginTop: '0.3rem' }}>Import Backup</button>
-
               <div style={{ marginTop: '0.3rem' }}>
                 <button onClick={() => setShowStatsPanel(!showStatsPanel)} className="util-btn" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.3rem' }}>
                   {showStatsPanel ? '▼' : '▶'} Quick Stats
@@ -627,9 +831,8 @@ const LifeDashboard = () => {
               </div>
             </div>
 
-            {/* MIDDLE */}
+            {/* Middle */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', minHeight: 0 }}>
-              {/* Neurosurgery */}
               <div className="section-card" style={{ minHeight: '200px' }}>
                 <div className="section-title">NEUROSURGERY</div>
                 <div className="section-content">
@@ -669,8 +872,6 @@ const LifeDashboard = () => {
                   )}
                 </div>
               </div>
-
-              {/* Study */}
               <div className="section-card" style={{ minHeight: '300px' }}>
                 <div className="section-title">STUDY</div>
                 <div className="section-content">
@@ -681,8 +882,6 @@ const LifeDashboard = () => {
                   {renderStudyList(studyRhoton, setStudyRhoton, 'Rhoton')}
                 </div>
               </div>
-
-              {/* Art */}
               <div className="section-card" style={{ minHeight: '300px' }}>
                 <div className="section-title">ART</div>
                 <div className="section-content">
@@ -696,8 +895,6 @@ const LifeDashboard = () => {
                   )}
                 </div>
               </div>
-
-              {/* Brainstorm */}
               <div className="section-card" style={{ minHeight: '340px' }}>
                 <div className="section-title">BRAINSTORM</div>
                 <div className="section-content">
@@ -708,19 +905,14 @@ const LifeDashboard = () => {
                     <button onClick={() => setShowHistory(!showHistory)} disabled={brainstormHistory.length === 0} style={{ width: '100%', padding: '0.5rem', background: C.cardBg, border: `1px solid ${C.border}`, borderRadius: 5, color: C.accentLight, cursor: brainstormHistory.length > 0 ? 'pointer' : 'default', fontSize: '0.7rem', fontWeight: '500', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.3rem' }}>
                       {showHistory ? <ChevronDown size={12} /> : <ChevronRight size={12} />} History ({brainstormHistory.length})
                     </button>
-                    {showHistory && brainstormHistory.length > 0 && (
-                      <div style={{ marginTop: '0.6rem', maxHeight: '250px', overflowY: 'auto' }}>
-                        {brainstormHistory.map(e => renderBrainstormEntry(e, true))}
-                      </div>
-                    )}
+                    {showHistory && brainstormHistory.length > 0 && <div style={{ marginTop: '0.6rem', maxHeight: '250px', overflowY: 'auto' }}>{brainstormHistory.map(e => renderBrainstormEntry(e, true))}</div>}
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* RIGHT */}
+            {/* Right */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', minHeight: 0 }}>
-              {/* The Month */}
               <div className="section-card" style={{ minHeight: '250px', background: 'rgba(0,0,0,0.35)' }}>
                 <div className="section-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span>THE MONTH</span>
@@ -761,16 +953,11 @@ const LifeDashboard = () => {
                             <span style={{ fontSize: '0.8rem', color: warn ? C.warnText : C.text, textDecoration: goal.done ? 'line-through' : 'none' }}>{goal.title}</span>
                           </div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                            {dd !== null ? (
-                              <div style={{ fontSize: '0.6rem', color: isDueSoon ? C.warnBorder : C.accentLight, fontWeight: isDueSoon ? '600' : 'normal' }}>{dd<0?`${Math.abs(dd)} days overdue`:`${dd} day${dd!==1?'s':''} left`}</div>
-                            ) : (
-                              <div style={{ fontSize: '0.6rem', color: isOld ? C.warnBorder : C.accentLight, fontWeight: isOld ? '600' : 'normal' }}>{ds} day{ds!==1?'s':''}</div>
-                            )}
+                            {dd !== null ? <div style={{ fontSize: '0.6rem', color: isDueSoon ? C.warnBorder : C.accentLight, fontWeight: isDueSoon ? '600' : 'normal' }}>{dd<0?`${Math.abs(dd)} days overdue`:`${dd} day${dd!==1?'s':''} left`}</div>
+                              : <div style={{ fontSize: '0.6rem', color: isOld ? C.warnBorder : C.accentLight, fontWeight: isOld ? '600' : 'normal' }}>{ds} day{ds!==1?'s':''}</div>}
                             <input type="date" value={goal.dueDate||''} onChange={e => { e.stopPropagation(); setMonthlyGoals(prev => prev.map(g => g.id === goal.id ? { ...g, dueDate: e.target.value } : g)); }} onClick={e => e.stopPropagation()} style={{ padding: '0.15rem 0.25rem', fontSize: '0.55rem', background: 'rgba(180,210,245,0.05)', border: `1px solid ${C.border}`, borderRadius: 3, color: warn ? C.warnText : C.accentLight, cursor: 'pointer' }} />
                           </div>
-                          {goal.showNotes && (
-                            <textarea value={goal.notes||''} onChange={e => { e.stopPropagation(); setMonthlyGoals(prev => prev.map(g => g.id === goal.id ? { ...g, notes: e.target.value } : g)); }} onClick={e => e.stopPropagation()} placeholder="Add notes..." style={{ width: '100%', minHeight: '60px', marginTop: '0.4rem', padding: '0.4rem', background: 'rgba(180,210,245,0.05)', border: `1px solid ${C.border}`, borderRadius: 4, color: warn ? C.warnText : C.text, fontSize: '0.7rem', fontFamily: 'inherit', resize: 'vertical' }} />
-                          )}
+                          {goal.showNotes && <textarea value={goal.notes||''} onChange={e => { e.stopPropagation(); setMonthlyGoals(prev => prev.map(g => g.id === goal.id ? { ...g, notes: e.target.value } : g)); }} onClick={e => e.stopPropagation()} placeholder="Add notes..." style={{ width: '100%', minHeight: '60px', marginTop: '0.4rem', padding: '0.4rem', background: 'rgba(180,210,245,0.05)', border: `1px solid ${C.border}`, borderRadius: 4, color: warn ? C.warnText : C.text, fontSize: '0.7rem', fontFamily: 'inherit', resize: 'vertical' }} />}
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
                           <button onClick={e => { e.stopPropagation(); setMonthlyGoals(prev => prev.map(g => g.id === goal.id ? { ...g, showNotes: !g.showNotes } : g)); }} style={{ background: C.itemBg, border: 'none', borderRadius: 4, padding: '0.2rem', color: C.text, cursor: 'pointer', fontSize: '0.65rem' }}>📝</button>
@@ -781,8 +968,6 @@ const LifeDashboard = () => {
                   })}
                 </div>
               </div>
-
-              {/* Research — flex: 1 so it takes remaining height */}
               <div className="section-card" style={{ flex: 1, minHeight: '450px' }}>
                 <div className="section-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span>RESEARCH</span>
@@ -790,25 +975,21 @@ const LifeDashboard = () => {
                 </div>
                 <div className="section-content">
                   {!showNewProjectInput ? (
-                    <button className="add-button" onClick={() => setShowNewProjectInput(true)} style={{ width: '100%', marginBottom: '0.6rem', marginTop: 0, justifyContent: 'center' }}>
-                      <Plus size={13} /> Add Project
-                    </button>
+                    <button className="add-button" onClick={() => setShowNewProjectInput(true)} style={{ width: '100%', marginBottom: '0.6rem', marginTop: 0, justifyContent: 'center' }}><Plus size={13} /> Add Project</button>
                   ) : (
                     <div style={{ marginBottom: '0.6rem' }}>
-                      <input type="text" value={newProjectTitle} onChange={e => setNewProjectTitle(e.target.value)} onKeyPress={e => { if (e.key === 'Enter') addResearchProject(); if (e.key === 'Escape') { setShowNewProjectInput(false); setNewProjectTitle(''); } }} placeholder="Project title..." autoFocus className="input-field" style={{ marginBottom: '0.3rem' }} />
+                      <input type="text" value={newProjectTitle} onChange={e => setNewProjectTitle(e.target.value)} onKeyPress={e => { if (e.key === 'Enter') addResearchProject(); }} placeholder="Project title..." autoFocus className="input-field" style={{ marginBottom: '0.3rem' }} />
                       <div style={{ display: 'flex', gap: '0.3rem' }}>
                         <button onClick={addResearchProject} className="add-button" style={{ flex: 1, marginTop: 0 }}>Add</button>
                         <button onClick={() => { setShowNewProjectInput(false); setNewProjectTitle(''); }} style={{ flex: 1, padding: '0.5rem', background: 'rgba(0,0,0,0.3)', border: `1px solid ${C.border}`, borderRadius: 5, color: C.textMuted, cursor: 'pointer', fontSize: '0.75rem' }}>Cancel</button>
                       </div>
                     </div>
                   )}
-
                   {researchProjects.map(project => (
                     <div key={project.id} draggable onDragStart={() => setDraggedResearch(project)} onDragOver={e => e.preventDefault()} onDrop={() => handleResearchDrop(project)}
                       style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.6rem 0.5rem', background: project.done ? 'rgba(232,241,252,0.06)' : C.itemBg, borderRadius: 6, marginBottom: '0.35rem', cursor: 'grab', border: `1px solid ${C.border}` }}>
                       <span style={{ color: C.textFaint, fontSize: '0.7rem', cursor: 'grab', flexShrink: 0 }}>⠿</span>
-                      <div onClick={() => setResearchProjects(prev => prev.map(p => p.id === project.id ? { ...p, done: !p.done } : p))}
-                        style={{ width: 13, height: 13, border: `2px solid ${C.accent}`, borderRadius: 3, display: 'flex', alignItems: 'center', justifyContent: 'center', background: project.done ? C.accent : 'transparent', cursor: 'pointer', flexShrink: 0 }}>
+                      <div onClick={() => setResearchProjects(prev => prev.map(p => p.id === project.id ? { ...p, done: !p.done } : p))} style={{ width: 13, height: 13, border: `2px solid ${C.accent}`, borderRadius: 3, display: 'flex', alignItems: 'center', justifyContent: 'center', background: project.done ? C.accent : 'transparent', cursor: 'pointer', flexShrink: 0 }}>
                         {project.done && <Check size={8} color="#fff" />}
                       </div>
                       <span style={{ flex: 1, fontSize: '0.78rem', lineHeight: 1.3, fontWeight: project.done ? '400' : '500', color: C.text }}>{project.title}</span>
@@ -816,7 +997,6 @@ const LifeDashboard = () => {
                       <button onClick={() => deleteResearchProject(project.id)} style={{ background: C.itemBg, border: 'none', borderRadius: 4, padding: '0.2rem', color: C.text, cursor: 'pointer', flexShrink: 0 }}><Trash2 size={9} /></button>
                     </div>
                   ))}
-
                   <div style={{ marginTop: '0.6rem', borderTop: `1px solid ${C.border}`, paddingTop: '0.6rem' }}>
                     <button onClick={() => setShowResearchHistory(!showResearchHistory)} disabled={researchHistory.length === 0} style={{ width: '100%', padding: '0.5rem', background: C.cardBg, border: `1px solid ${C.border}`, borderRadius: 5, color: C.accentLight, cursor: researchHistory.length > 0 ? 'pointer' : 'default', fontSize: '0.7rem', fontWeight: '500', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.3rem' }}>
                       {showResearchHistory ? <ChevronDown size={12} /> : <ChevronRight size={12} />} History ({researchHistory.length})
@@ -844,33 +1024,35 @@ const LifeDashboard = () => {
         </div>
       </div>
 
+      {/* Popups */}
       {showWeeklyResetPopup && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: C.bg2, padding: '2rem', borderRadius: 8, maxWidth: '400px', border: `2px solid ${C.accent}` }}>
             <h3 style={{ margin: '0 0 1rem 0', color: C.accentLight, fontSize: '1.1rem' }}>New Week Started</h3>
             <p style={{ margin: '0 0 1.5rem 0', color: C.text, fontSize: '0.9rem', lineHeight: '1.5' }}>Would you like to clear all completed tasks from last week?</p>
             <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
-              <button onClick={() => handleWeeklyReset(false)} style={{ padding: '0.5rem 1rem', background: C.itemBg, border: `1px solid ${C.border}`, borderRadius: 5, color: C.text, cursor: 'pointer', fontSize: '0.85rem' }}>Keep Tasks</button>
-              <button onClick={() => handleWeeklyReset(true)} style={{ padding: '0.5rem 1rem', background: C.accent, border: 'none', borderRadius: 5, color: '#fff', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '500' }}>Clear Completed</button>
+              <button onClick={() => handleWeeklyReset(false)} style={{ padding: '0.5rem 1rem', background: C.itemBg, border: `1px solid ${C.border}`, borderRadius: 5, color: C.text, cursor: 'pointer' }}>Keep Tasks</button>
+              <button onClick={() => handleWeeklyReset(true)} style={{ padding: '0.5rem 1rem', background: C.accent, border: 'none', borderRadius: 5, color: '#fff', cursor: 'pointer', fontWeight: '500' }}>Clear Completed</button>
             </div>
           </div>
         </div>
       )}
-
       {showMonthlyResetPopup && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: C.bg2, padding: '2rem', borderRadius: 8, maxWidth: '400px', border: `2px solid ${C.accent}` }}>
             <h3 style={{ margin: '0 0 1rem 0', color: C.accentLight, fontSize: '1.1rem' }}>New Month Started</h3>
             <p style={{ margin: '0 0 1.5rem 0', color: C.text, fontSize: '0.9rem', lineHeight: '1.5' }}>Would you like to clear all completed monthly goals from last month?</p>
             <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
-              <button onClick={() => handleMonthlyReset(false)} style={{ padding: '0.5rem 1rem', background: C.itemBg, border: `1px solid ${C.border}`, borderRadius: 5, color: C.text, cursor: 'pointer', fontSize: '0.85rem' }}>Keep Goals</button>
-              <button onClick={() => handleMonthlyReset(true)} style={{ padding: '0.5rem 1rem', background: C.accent, border: 'none', borderRadius: 5, color: '#fff', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '500' }}>Clear Completed</button>
+              <button onClick={() => handleMonthlyReset(false)} style={{ padding: '0.5rem 1rem', background: C.itemBg, border: `1px solid ${C.border}`, borderRadius: 5, color: C.text, cursor: 'pointer' }}>Keep Goals</button>
+              <button onClick={() => handleMonthlyReset(true)} style={{ padding: '0.5rem 1rem', background: C.accent, border: 'none', borderRadius: 5, color: '#fff', cursor: 'pointer', fontWeight: '500' }}>Clear Completed</button>
             </div>
           </div>
         </div>
       )}
     </div>
   );
+
+  return isMobile ? renderMobile() : renderDesktop();
 };
 
 export default LifeDashboard;
