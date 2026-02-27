@@ -1,19 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { initializeApp } from 'firebase/app';
-import { getDatabase, ref, set, get } from 'firebase/database';
 
-const firebaseConfig = {
-  apiKey: "AIzaSyCx52vmij1LqLjpi9bzwADJDaEFrilt4u0",
-  authDomain: "dashboard-c21cd.firebaseapp.com",
-  databaseURL: "https://dashboard-c21cd-default-rtdb.firebaseio.com",
-  projectId: "dashboard-c21cd",
-  storageBucket: "dashboard-c21cd.firebasestorage.app",
-  messagingSenderId: "1061666472179",
-  appId: "1:1061666472179:web:d9823aff1971c650aa3786",
+const DB_KEY = 'user-090909';
+const DB_URL = 'https://dashboard-c21cd-default-rtdb.firebaseio.com';
+
+// Firebase REST API helpers — no package needed
+const fbGet = async () => {
+  const res = await fetch(`${DB_URL}/${DB_KEY}.json`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
 };
-const firebaseApp = initializeApp(firebaseConfig);
-const db = getDatabase(firebaseApp);
-const DB_KEY = 'user-090909'; // PIN-based key — only you know this path
+const fbSet = async (data) => {
+  const res = await fetch(`${DB_URL}/${DB_KEY}.json`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+};
 
 const ChevronDown = ({ size, color }) => <span style={{ fontSize: `${size || 14}px`, color: color || 'inherit' }}>▼</span>;
 const ChevronRight = ({ size, color }) => <span style={{ fontSize: `${size || 14}px`, color: color || 'inherit' }}>▶</span>;
@@ -151,24 +155,28 @@ const LifeDashboard = () => {
     if (d.studyRhoton) setStudyRhoton(d.studyRhoton);
   };
 
-  // ── Load: Firebase first, localStorage fallback ──
+  // ── Load: localStorage FIRST (never blank), then Firebase only if it has real data ──
   useEffect(() => {
     const load = async () => {
+      // Step 1: always load localStorage immediately so data is never wiped
+      const stored = localStorage.getItem('lifeDashboardData');
+      if (stored) {
+        try { applyData(JSON.parse(stored)); } catch (e) { console.error(e); }
+      }
+      // Step 2: try Firebase — only apply if response contains actual dashboard fields
       try {
-        const snapshot = await get(ref(db, DB_KEY));
-        if (snapshot.exists()) {
-          const d = snapshot.val();
+        const d = await fbGet();
+        const isRealData = d !== null && typeof d === 'object' && !Array.isArray(d) && (d.habits || d.weeklyTasks);
+        if (isRealData) {
           applyData(d);
           localStorage.setItem('lifeDashboardData', JSON.stringify(d));
           setSyncStatus('saved');
           setTimeout(() => setSyncStatus('idle'), 2000);
-          return;
         }
-      } catch (e) { console.warn('Firebase load failed:', e.code, e.message); setSyncStatus('load-error: ' + (e.code || e.message)); setTimeout(() => setSyncStatus('idle'), 8000); }
-      // Fallback to localStorage
-      const stored = localStorage.getItem('lifeDashboardData');
-      if (stored) {
-        try { applyData(JSON.parse(stored)); } catch (e) { console.error(e); }
+        // If Firebase is empty (null), we keep localStorage data — do nothing
+      } catch (e) {
+        console.warn('Firebase load failed:', e.message);
+        // localStorage already loaded above, user sees their data fine
       }
     };
     load();
@@ -186,7 +194,7 @@ const LifeDashboard = () => {
     setSyncStatus('saving');
     saveTimeoutRef.current = setTimeout(async () => {
       try {
-        await set(ref(db, DB_KEY), data);
+        await fbSet(data);
         setSyncStatus('saved');
         setTimeout(() => setSyncStatus('idle'), 2000);
       } catch (e) {
