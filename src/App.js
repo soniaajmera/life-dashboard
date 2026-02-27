@@ -71,7 +71,9 @@ const LifeDashboard = () => {
   const [showWeeklyResetPopup, setShowWeeklyResetPopup] = useState(false);
   const [showMonthlyResetPopup, setShowMonthlyResetPopup] = useState(false);
   const [showStatsPanel, setShowStatsPanel] = useState(false);
-  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+  const [isMobile, setIsMobile] = useState(() => {
+    try { return window.innerWidth <= 768; } catch { return false; }
+  });
   const [monthlyGoals, setMonthlyGoals] = useState([]);
   const [newGoalTitle, setNewGoalTitle] = useState('');
   const [researchProjects, setResearchProjects] = useState([{ id: 1, title: 'Endovascular Outcomes Study', done: false }]);
@@ -220,7 +222,7 @@ const LifeDashboard = () => {
   }, []);
 
   useEffect(() => {
-    if (Notification.permission === 'default') Notification.requestPermission();
+    try { if (typeof Notification !== 'undefined' && Notification.permission === 'default') Notification.requestPermission(); } catch (e) {}
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
