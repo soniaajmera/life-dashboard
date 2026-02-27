@@ -1,4 +1,19 @@
 import React, { useState, useEffect } from 'react';
+import { initializeApp } from 'firebase/app';
+import { getDatabase, ref, set, get } from 'firebase/database';
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCx52vmij1LqLjpi9bzwADJDaEFrilt4u0",
+  authDomain: "dashboard-c21cd.firebaseapp.com",
+  databaseURL: "https://dashboard-c21cd-default-rtdb.firebaseio.com",
+  projectId: "dashboard-c21cd",
+  storageBucket: "dashboard-c21cd.firebasestorage.app",
+  messagingSenderId: "1061666472179",
+  appId: "1:1061666472179:web:d9823aff1971c650aa3786",
+};
+const firebaseApp = initializeApp(firebaseConfig);
+const db = getDatabase(firebaseApp);
+const DB_KEY = 'user-090909'; // PIN-based key — only you know this path
 
 const ChevronDown = ({ size, color }) => <span style={{ fontSize: `${size || 14}px`, color: color || 'inherit' }}>▼</span>;
 const ChevronRight = ({ size, color }) => <span style={{ fontSize: `${size || 14}px`, color: color || 'inherit' }}>▶</span>;
@@ -116,7 +131,7 @@ const LifeDashboard = () => {
 
   const [syncStatus, setSyncStatus] = useState('idle'); // idle | saving | saved | error
 
-  // ── Apply loaded data (shared between cloud load and import) ──
+  // ── Apply loaded data ──
   const applyData = (d) => {
     if (d.habits) { const m = {}; Object.keys(d.habits).forEach(k => { m[k] = { ...d.habits[k], totalCompleted: d.habits[k].totalCompleted || 0 }; }); if (!m.suturing) m.suturing = { streak: 0, today: false, totalCompleted: 0 }; setHabits(m); }
     if (d.weeklyTasks) { const m = {}; Object.keys(d.weeklyTasks).forEach(day => { m[day] = d.weeklyTasks[day].map(t => ({ ...t, priority: t.priority || false })); }); setWeeklyTasks(m); }
@@ -136,19 +151,20 @@ const LifeDashboard = () => {
     if (d.studyRhoton) setStudyRhoton(d.studyRhoton);
   };
 
-  // ── Load: cloud first, localStorage fallback ──
+  // ── Load: Firebase first, localStorage fallback ──
   useEffect(() => {
     const load = async () => {
-      // Try cloud storage first
       try {
-        const result = await window.storage.get('dashboard-data');
-        if (result && result.value) {
-          const d = JSON.parse(result.value);
+        const snapshot = await get(ref(db, DB_KEY));
+        if (snapshot.exists()) {
+          const d = snapshot.val();
           applyData(d);
-          localStorage.setItem('lifeDashboardData', result.value); // keep local in sync
+          localStorage.setItem('lifeDashboardData', JSON.stringify(d));
+          setSyncStatus('saved');
+          setTimeout(() => setSyncStatus('idle'), 2000);
           return;
         }
-      } catch (e) { /* storage not available, fall through */ }
+      } catch (e) { console.warn('Firebase load failed:', e.code, e.message); setSyncStatus('load-error: ' + (e.code || e.message)); setTimeout(() => setSyncStatus('idle'), 8000); }
       // Fallback to localStorage
       const stored = localStorage.getItem('lifeDashboardData');
       if (stored) {
@@ -159,23 +175,24 @@ const LifeDashboard = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Save: write to both cloud and localStorage ──
+  // ── Save: Firebase + localStorage, debounced 1s ──
   const saveTimeoutRef = React.useRef(null);
+  const isFirstRender = React.useRef(true);
   useEffect(() => {
-    const data = JSON.stringify({ habits, weeklyTasks, monthlyGoals, researchProjects, researchHistory, brainstormEntries, brainstormHistory, articleHistory, lastArticleDate, dailyArticle, lastWeeklyReset, lastMonthlyReset, lastHabitDate, studyApproach, studyPathology, studyRhoton });
-    // Always save to localStorage immediately
-    localStorage.setItem('lifeDashboardData', data);
-    // Debounce cloud saves to avoid hammering on rapid changes
+    if (isFirstRender.current) { isFirstRender.current = false; return; }
+    const data = { habits, weeklyTasks, monthlyGoals, researchProjects, researchHistory, brainstormEntries, brainstormHistory, articleHistory, lastArticleDate, dailyArticle, lastWeeklyReset, lastMonthlyReset, lastHabitDate, studyApproach, studyPathology, studyRhoton };
+    localStorage.setItem('lifeDashboardData', JSON.stringify(data));
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     setSyncStatus('saving');
     saveTimeoutRef.current = setTimeout(async () => {
       try {
-        await window.storage.set('dashboard-data', data);
+        await set(ref(db, DB_KEY), data);
         setSyncStatus('saved');
         setTimeout(() => setSyncStatus('idle'), 2000);
       } catch (e) {
-        setSyncStatus('error');
-        setTimeout(() => setSyncStatus('idle'), 3000);
+        console.error('Firebase save failed:', e);
+        setSyncStatus('error - ' + (e.code || e.message || 'unknown'));
+        setTimeout(() => setSyncStatus('idle'), 8000);
       }
     }, 1000);
   }, [habits, weeklyTasks, monthlyGoals, researchProjects, researchHistory, brainstormEntries, brainstormHistory, articleHistory, lastArticleDate, dailyArticle, lastWeeklyReset, lastMonthlyReset, lastHabitDate, studyApproach, studyPathology, studyRhoton]);
@@ -659,7 +676,7 @@ const LifeDashboard = () => {
               {SECTIONS[activeSection].icon} {SECTIONS[activeSection].label}
               {syncStatus === 'saving' && <span style={{ fontSize: '0.55rem', color: C.textFaint }}>syncing…</span>}
               {syncStatus === 'saved' && <span style={{ fontSize: '0.55rem', color: '#5cb85c' }}>✓ synced</span>}
-              {syncStatus === 'error' && <span style={{ fontSize: '0.55rem', color: '#d9534f' }}>⚠ offline</span>}
+              {syncStatus.startsWith('error') && <span style={{ fontSize: '0.55rem', color: '#d9534f' }}>⚠ {syncStatus}</span>}
             </div>
             <div style={{ display: 'flex', gap: '0.4rem' }}>
               <button onClick={exportData} style={{ padding: '0.25rem 0.55rem', background: 'rgba(74,144,217,0.15)', border: `1px solid ${C.border}`, borderRadius: 6, color: C.textMuted, cursor: 'pointer', fontSize: '0.6rem' }}>Export</button>
