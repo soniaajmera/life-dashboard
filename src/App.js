@@ -1,9 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 
 const DB_KEY = 'user-090909';
 const DB_URL = 'https://dashboard-c21cd-default-rtdb.firebaseio.com';
 
-// Firebase REST API helpers — no package needed
 const fbGet = async () => {
   const res = await fetch(`${DB_URL}/${DB_KEY}.json`);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -36,18 +35,15 @@ const C = {
   warn: 'rgba(232,241,252,0.68)', warnBorder: '#2A5A8A', warnText: '#0D1E30',
 };
 
-// ── Accordion wrapper for mobile ──
 const LifeDashboard = () => {
   const surgeryDate = new Date('2025-11-04');
   const dashboardStartDate = new Date('2026-01-28');
   const today = new Date();
-
   const weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  // Figure out which day key corresponds to "today"
-  const todayDayIndex = today.getDay(); // 0=Sun, 1=Mon ... 6=Sat
-  const todayKey = weekDays[todayDayIndex === 0 ? 6 : todayDayIndex - 1]; // convert to Mon-based
-  const [selectedDay, setSelectedDay] = useState(todayKey);
+  const todayDayIndex = today.getDay();
+  const todayKey = weekDays[todayDayIndex === 0 ? 6 : todayDayIndex - 1];
 
+  const [selectedDay, setSelectedDay] = useState(todayKey);
   const [habits, setHabits] = useState({
     knee: { streak: 0, today: false, totalCompleted: 0 },
     creative: { streak: 0, today: false, totalCompleted: 0 },
@@ -56,7 +52,6 @@ const LifeDashboard = () => {
     reading: { streak: 0, today: false, totalCompleted: 0 },
     suturing: { streak: 0, today: false, totalCompleted: 0 }
   });
-
   const [weeklyTasks, setWeeklyTasks] = useState({ Mon: [], Tue: [], Wed: [], Thu: [], Fri: [], Sat: [], Sun: [] });
   const [showTaskInput, setShowTaskInput] = useState({});
   const [newTaskInput, setNewTaskInput] = useState({});
@@ -89,6 +84,8 @@ const LifeDashboard = () => {
   const [articleHistory, setArticleHistory] = useState([]);
   const [showArticleHistory, setShowArticleHistory] = useState(false);
   const [lastArticleDate, setLastArticleDate] = useState(null);
+  const [syncStatus, setSyncStatus] = useState('idle');
+  const [activeSection, setActiveSection] = useState(0);
 
   const [studyApproach, setStudyApproach] = useState([
     { id: 'a1', text: 'Pterional', done: false }, { id: 'a2', text: 'Parietal', done: false },
@@ -133,12 +130,20 @@ const LifeDashboard = () => {
     { id: 'r14', text: 'The nose for neurosurgeons', done: false },
   ]);
 
-  const [syncStatus, setSyncStatus] = useState('idle'); // idle | saving | saved | error
-
-  // ── Apply loaded data ──
-  const applyData = (d) => {
-    if (d.habits) { const m = {}; Object.keys(d.habits).forEach(k => { m[k] = { ...d.habits[k], totalCompleted: d.habits[k].totalCompleted || 0 }; }); if (!m.suturing) m.suturing = { streak: 0, today: false, totalCompleted: 0 }; setHabits(m); }
-    if (d.weeklyTasks) { const m = {}; Object.keys(d.weeklyTasks).forEach(day => { m[day] = d.weeklyTasks[day].map(t => ({ ...t, priority: t.priority || false })); }); setWeeklyTasks(m); }
+  // ── Apply loaded data (safe - never wipes state) ──
+  const applyData = useCallback((d) => {
+    if (!d || typeof d !== 'object' || Array.isArray(d)) return;
+    if (d.habits) {
+      const m = {};
+      Object.keys(d.habits).forEach(k => { m[k] = { ...d.habits[k], totalCompleted: d.habits[k].totalCompleted || 0 }; });
+      if (!m.suturing) m.suturing = { streak: 0, today: false, totalCompleted: 0 };
+      setHabits(m);
+    }
+    if (d.weeklyTasks) {
+      const m = {};
+      Object.keys(d.weeklyTasks).forEach(day => { m[day] = (d.weeklyTasks[day] || []).map(t => ({ ...t, priority: t.priority || false })); });
+      setWeeklyTasks(m);
+    }
     if (d.monthlyGoals) setMonthlyGoals(d.monthlyGoals.map(g => ({ ...g, dateAdded: g.dateAdded || Date.now() })));
     if (d.researchProjects) setResearchProjects(d.researchProjects.map(p => ({ id: p.id, title: p.title, done: p.done || false })));
     if (d.researchHistory) setResearchHistory(d.researchHistory);
@@ -153,72 +158,67 @@ const LifeDashboard = () => {
     if (d.studyApproach) setStudyApproach(d.studyApproach);
     if (d.studyPathology) setStudyPathology(d.studyPathology);
     if (d.studyRhoton) setStudyRhoton(d.studyRhoton);
-  };
+  }, []);
 
-  // ── Load: localStorage FIRST (never blank), then Firebase only if it has real data ──
+  // ── Load ──
   useEffect(() => {
     const load = async () => {
-      // Step 1: always load localStorage immediately so data is never wiped
       const stored = localStorage.getItem('lifeDashboardData');
-      if (stored) {
-        try { applyData(JSON.parse(stored)); } catch (e) { console.error(e); }
-      }
-      // Step 2: try Firebase — only apply if response contains actual dashboard fields
+      if (stored) { try { applyData(JSON.parse(stored)); } catch (e) { console.error(e); } }
       try {
         const d = await fbGet();
-        const isRealData = d !== null && typeof d === 'object' && !Array.isArray(d) && (d.habits || d.weeklyTasks);
-        if (isRealData) {
+        if (d !== null && typeof d === 'object' && !Array.isArray(d) && (d.habits || d.weeklyTasks)) {
           applyData(d);
           localStorage.setItem('lifeDashboardData', JSON.stringify(d));
           setSyncStatus('saved');
           setTimeout(() => setSyncStatus('idle'), 2000);
         }
-        // If Firebase is empty (null), we keep localStorage data — do nothing
-      } catch (e) {
-        console.warn('Firebase load failed:', e.message);
-        // localStorage already loaded above, user sees their data fine
-      }
+      } catch (e) { console.warn('Firebase load failed:', e.message); }
     };
     load();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, []); // eslint-disable-line
 
-  // ── Save: Firebase + localStorage, debounced 1s ──
-  const saveTimeoutRef = React.useRef(null);
-  const isFirstRender = React.useRef(true);
+  // ── Save (debounced, no syncStatus set during render) ──
+  const saveTimeoutRef = useRef(null);
+  const isFirstRender = useRef(true);
+  const pendingData = useRef(null);
+
   useEffect(() => {
     if (isFirstRender.current) { isFirstRender.current = false; return; }
     const data = { habits, weeklyTasks, monthlyGoals, researchProjects, researchHistory, brainstormEntries, brainstormHistory, articleHistory, lastArticleDate, dailyArticle, lastWeeklyReset, lastMonthlyReset, lastHabitDate, studyApproach, studyPathology, studyRhoton };
     localStorage.setItem('lifeDashboardData', JSON.stringify(data));
+    pendingData.current = data;
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-    setSyncStatus('saving');
     saveTimeoutRef.current = setTimeout(async () => {
+      const toSave = pendingData.current;
+      if (!toSave) return;
+      setSyncStatus('saving');
       try {
-        await fbSet(data);
+        await fbSet(toSave);
         setSyncStatus('saved');
         setTimeout(() => setSyncStatus('idle'), 2000);
       } catch (e) {
         console.error('Firebase save failed:', e);
-        setSyncStatus('error - ' + (e.code || e.message || 'unknown'));
-        setTimeout(() => setSyncStatus('idle'), 8000);
+        setSyncStatus('error');
+        setTimeout(() => setSyncStatus('idle'), 4000);
       }
-    }, 1000);
-  }, [habits, weeklyTasks, monthlyGoals, researchProjects, researchHistory, brainstormEntries, brainstormHistory, articleHistory, lastArticleDate, dailyArticle, lastWeeklyReset, lastMonthlyReset, lastHabitDate, studyApproach, studyPathology, studyRhoton]);
+    }, 1500);
+  }, [habits, weeklyTasks, monthlyGoals, researchProjects, researchHistory, brainstormEntries, brainstormHistory, articleHistory, lastArticleDate, dailyArticle, lastWeeklyReset, lastMonthlyReset, lastHabitDate, studyApproach, studyPathology, studyRhoton]); // eslint-disable-line
 
   const contentDatabase = [
     { name: 'Frida Kahlo', type: 'Artist', contentType: 'quote', content: '"I paint myself because I am so often alone and because I am the subject I know best."', context: 'Kahlo created 55 self-portraits, using her own image to explore identity, pain, and the human experience.' },
     { name: 'Vincent van Gogh', type: 'Artist', contentType: 'fact', content: 'Van Gogh only sold one painting during his lifetime for 400 francs.', context: 'Despite creating over 2,000 artworks, he died in poverty. Today his paintings sell for over $100 million.' },
-    { name: 'Virginia Woolf', type: 'Author', contentType: 'quote', content: '"A woman must have money and a room of her own if she is to write fiction."', context: 'From "A Room of One\'s Own" (1929), Woolf\'s groundbreaking feminist essay on women\'s barriers to creative freedom.' },
-    { name: 'James Baldwin', type: 'Author', contentType: 'quote', content: '"Not everything that is faced can be changed, but nothing can be changed until it is faced."', context: 'Baldwin\'s powerful essays on race, identity, and America made him one of the 20th century\'s most important voices.' },
+    { name: 'Virginia Woolf', type: 'Author', contentType: 'quote', content: '"A woman must have money and a room of her own if she is to write fiction."', context: "From \"A Room of One's Own\" (1929), Woolf's groundbreaking feminist essay on women's barriers to creative freedom." },
+    { name: 'James Baldwin', type: 'Author', contentType: 'quote', content: '"Not everything that is faced can be changed, but nothing can be changed until it is faced."', context: "Baldwin's powerful essays on race, identity, and America made him one of the 20th century's most important voices." },
     { name: 'Toni Morrison', type: 'Author', contentType: 'quote', content: '"If there\'s a book you want to read but it hasn\'t been written yet, then you must write it."', context: 'Nobel Prize winner Morrison transformed American literature exploring Black identity and memory.' },
     { name: 'Mary Oliver', type: 'Poet', contentType: 'quote', content: '"Tell me, what is it you plan to do with your one wild and precious life?"', context: 'Pulitzer Prize-winning poet celebrated for accessible verse about nature and wonder.' },
     { name: 'Claude Monet', type: 'Artist', contentType: 'fact', content: 'Painted the same haystack over 25 times to capture changing light and seasons.', context: 'Impressionism founder who devoted his final decades to painting water lilies in his garden.' },
     { name: 'Rembrandt van Rijn', type: 'Artist', contentType: 'fact', content: 'Created nearly 100 self-portraits chronicling his aging from youth to old age.', context: 'Dutch master whose revolutionary use of light and shadow revealed psychological depth.' },
     { name: 'Salvador Dalí', type: 'Artist', contentType: 'fact', content: 'The Persistence of Memory features melting pocket watches in a dreamlike landscape.', context: 'Surrealist showman who explored the unconscious with technical precision.' },
-    { name: 'Georgia O\'Keeffe', type: 'Artist', contentType: 'fact', content: 'Her massive flower paintings revealed abstract forms hidden in nature\'s details.', context: 'Mother of American modernism who found beauty in New Mexico\'s stark landscapes.' },
+    { name: "Georgia O'Keeffe", type: 'Artist', contentType: 'fact', content: "Her massive flower paintings revealed abstract forms hidden in nature's details.", context: "Mother of American modernism who found beauty in New Mexico's stark landscapes." },
     { name: 'Maya Angelou', type: 'Author', contentType: 'quote', content: '"There is no greater agony than bearing an untold story inside you."', context: 'Poet and civil rights activist whose autobiography "I Know Why the Caged Bird Sings" broke new ground.' },
-    { name: 'Jackson Pollock', type: 'Artist', contentType: 'fact', content: 'Created "drip paintings" by pouring and splashing paint onto canvas on the floor.', context: 'Action painter whose physical process embodied Abstract Expressionism\'s energy.' },
-    { name: 'Andy Warhol', type: 'Artist', contentType: 'fact', content: 'Silk-screened Campbell\'s Soup Cans and Marilyn Monroe, elevating commercial images to art.', context: 'Pop Art icon who blurred lines between fine art, celebrity, and consumerism.' },
+    { name: 'Jackson Pollock', type: 'Artist', contentType: 'fact', content: 'Created "drip paintings" by pouring and splashing paint onto canvas on the floor.', context: "Action painter whose physical process embodied Abstract Expressionism's energy." },
+    { name: 'Andy Warhol', type: 'Artist', contentType: 'fact', content: "Silk-screened Campbell's Soup Cans and Marilyn Monroe, elevating commercial images to art.", context: 'Pop Art icon who blurred lines between fine art, celebrity, and consumerism.' },
     { name: 'Yayoi Kusama', type: 'Artist', contentType: 'quote', content: '"I want to be forgotten, obliterated by the things I create."', context: 'Kusama has lived in a psychiatric hospital since 1977, creating art daily exploring infinity.' },
     { name: 'Gabriel García Márquez', type: 'Author', contentType: 'quote', content: '"What matters in life is not what happens to you but what you remember and how you remember it."', context: 'The Colombian Nobel laureate pioneered magical realism, blending fantasy with historical reality.' },
   ];
@@ -257,13 +257,11 @@ const LifeDashboard = () => {
       setDailyArticle(articleDatabase[Math.floor(Math.random() * articleDatabase.length)]);
       setLastArticleDate(todayStr);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, []); // eslint-disable-line
 
   useEffect(() => {
     try { if (typeof Notification !== 'undefined' && Notification.permission === 'default') Notification.requestPermission(); } catch (e) {}
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, []); // eslint-disable-line
 
   useEffect(() => {
     const check = () => {
@@ -290,7 +288,6 @@ const LifeDashboard = () => {
     return () => window.removeEventListener('resize', h);
   }, []);
 
-  // ── Helpers ──
   const exportData = () => {
     const data = { habits, weeklyTasks, monthlyGoals, researchProjects, researchHistory, brainstormEntries, brainstormHistory, articleHistory, lastArticleDate, dailyArticle, lastWeeklyReset, lastMonthlyReset, lastHabitDate, studyApproach, studyPathology, studyRhoton, exportDate: new Date().toISOString() };
     const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
@@ -303,13 +300,7 @@ const LifeDashboard = () => {
     input.onchange = e => {
       const file = e.target.files[0]; if (!file) return;
       const reader = new FileReader();
-      reader.onload = ev => {
-        try {
-          const d = JSON.parse(ev.target.result);
-          applyData(d);
-          alert('Imported! Data will sync to all devices.');
-        } catch { alert('Import error.'); }
-      };
+      reader.onload = ev => { try { applyData(JSON.parse(ev.target.result)); alert('Imported!'); } catch { alert('Import error.'); } };
       reader.readAsText(file);
     };
     input.click();
@@ -344,21 +335,25 @@ const LifeDashboard = () => {
   const saveTaskToDay = day => {
     const t = newTaskInput[day];
     if (t && t.trim()) {
-      setWeeklyTasks(prev => ({ ...prev, [day]: [...prev[day], { id: Date.now(), text: t.trim(), done: false, priority: false }] }));
-      setNewTaskInput(prev => ({ ...prev, [day]: '' })); setShowTaskInput(prev => ({ ...prev, [day]: false }));
+      setWeeklyTasks(prev => ({ ...prev, [day]: [...(prev[day] || []), { id: Date.now(), text: t.trim(), done: false, priority: false }] }));
+      setNewTaskInput(prev => ({ ...prev, [day]: '' }));
+      setShowTaskInput(prev => ({ ...prev, [day]: false }));
     }
   };
 
   const handleDrop = targetDay => {
     if (draggedTask) {
-      setWeeklyTasks(prev => ({ ...prev, [draggedTask.day]: prev[draggedTask.day].filter(t => t.id !== draggedTask.task.id) }));
-      setWeeklyTasks(prev => ({ ...prev, [targetDay]: [...prev[targetDay], draggedTask.task] }));
+      setWeeklyTasks(prev => {
+        const next = { ...prev };
+        next[draggedTask.day] = (next[draggedTask.day] || []).filter(t => t.id !== draggedTask.task.id);
+        next[targetDay] = [...(next[targetDay] || []), draggedTask.task];
+        return next;
+      });
       setDraggedTask(null);
     }
   };
 
   const addGoal = () => { if (newGoalTitle.trim()) { setMonthlyGoals(prev => [...prev, { id: Date.now(), title: newGoalTitle, done: false, dateAdded: Date.now(), priority: false, dueDate: null, notes: '', showNotes: false }]); setNewGoalTitle(''); } };
-
   const addResearchProject = () => { if (newProjectTitle.trim()) { setResearchProjects(prev => [...prev, { id: Date.now(), title: newProjectTitle.trim(), done: false }]); setNewProjectTitle(''); setShowNewProjectInput(false); } };
   const deleteResearchProject = id => { const p = researchProjects.find(p => p.id === id); if (p) { setResearchHistory(prev => [{ ...p, completedDate: new Date().toISOString() }, ...prev]); setResearchProjects(prev => prev.filter(p => p.id !== id)); } };
   const handleResearchDrop = target => {
@@ -375,7 +370,7 @@ const LifeDashboard = () => {
       setBrainstormEntries([entry]); setNewBrainstorm('');
     }
   };
-  const addSubnote = (entryId, fromHistory = false) => {
+  const addSubnote = (entryId, fromHistory) => {
     const text = subnoteText[entryId];
     if (!text || !text.trim()) return;
     const note = { id: Date.now(), date: new Date().toISOString(), text: text.trim() };
@@ -384,11 +379,11 @@ const LifeDashboard = () => {
     setSubnoteText(prev => ({ ...prev, [entryId]: '' }));
     setActiveSubnoteInput(prev => ({ ...prev, [entryId]: false }));
   };
-  const deleteSubnote = (entryId, noteId, fromHistory = false) => {
+  const deleteSubnote = (entryId, noteId, fromHistory) => {
     const updater = entries => entries.map(e => e.id === entryId ? { ...e, subnotes: (e.subnotes || []).filter(n => n.id !== noteId) } : e);
     if (fromHistory) setBrainstormHistory(updater); else setBrainstormEntries(updater);
   };
-  const deleteBrainstorm = (entryId, fromHistory = false) => {
+  const deleteBrainstorm = (entryId, fromHistory) => {
     if (fromHistory) { setBrainstormHistory(prev => prev.filter(e => e.id !== entryId)); }
     else { const e = brainstormEntries.find(e => e.id === entryId); if (e) setBrainstormHistory(prev => [e, ...prev]); setBrainstormEntries(prev => prev.filter(e => e.id !== entryId)); }
   };
@@ -399,7 +394,6 @@ const LifeDashboard = () => {
 
   const toggleStudyItem = (setter, id) => setter(prev => prev.map(item => item.id === id ? { ...item, done: !item.done } : item));
 
-  // ── Shared renderers ──
   const renderStudyList = (items, setter, label) => {
     const undone = items.filter(i => !i.done);
     const done = items.filter(i => i.done);
@@ -411,7 +405,7 @@ const LifeDashboard = () => {
         {undone.map(item => (
           <div key={item.id} onClick={() => toggleStudyItem(setter, item.id)}
             style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.6rem', background: C.itemBg, borderRadius: 6, marginBottom: '0.3rem', cursor: 'pointer', minHeight: 44 }}>
-            <div style={{ width: 14, height: 14, border: `2px solid ${C.accent}`, borderRadius: 3, background: 'transparent', flexShrink: 0 }} />
+            <div style={{ width: 14, height: 14, border: `2px solid ${C.accent}`, borderRadius: 3, flexShrink: 0 }} />
             <span style={{ fontSize: '0.82rem', color: C.text, lineHeight: 1.3 }}>{item.text}</span>
           </div>
         ))}
@@ -428,7 +422,7 @@ const LifeDashboard = () => {
     );
   };
 
-  const renderBrainstormEntry = (entry, fromHistory = false) => (
+  const renderBrainstormEntry = (entry, fromHistory) => (
     <div key={entry.id} style={{ background: fromHistory ? 'rgba(74,144,217,0.08)' : 'rgba(74,144,217,0.15)', borderLeft: `3px solid ${fromHistory ? 'rgba(74,144,217,0.3)' : C.accent}`, borderRadius: 6, padding: '0.75rem', marginBottom: '0.5rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
         <div style={{ fontSize: '0.7rem', color: C.textMuted }}>{new Date(entry.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>
@@ -464,7 +458,6 @@ const LifeDashboard = () => {
     </div>
   );
 
-  // ── Day column (shared between mobile day-switcher and desktop) ──
   const renderDayColumn = (day) => {
     const tasks = weeklyTasks[day] || [];
     const sorted = [...tasks].sort((a, b) => {
@@ -478,7 +471,7 @@ const LifeDashboard = () => {
         {!showTaskInput[day] ? (
           <button onClick={() => setShowTaskInput(prev => ({ ...prev, [day]: true }))}
             style={{ width: '100%', padding: isMobile ? '0.55rem' : '0.3rem', background: 'rgba(74,144,217,0.2)', border: `1px solid ${C.border}`, borderRadius: 6, color: C.accentLight, cursor: 'pointer', fontSize: isMobile ? '0.85rem' : '0.65rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.3rem', minHeight: isMobile ? 44 : 'auto' }}>
-            <Plus size={isMobile ? 13 : 10} /> {isMobile ? 'Add task' : ''}
+            <Plus size={isMobile ? 13 : 10} color={C.accentLight} /> {isMobile ? 'Add task' : ''}
           </button>
         ) : (
           <div>
@@ -493,33 +486,32 @@ const LifeDashboard = () => {
         {sorted.map(task => (
           <div key={task.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.4rem', padding: isMobile ? '0.65rem 0.6rem' : '0.4rem', background: C.itemBg, borderRadius: 6, fontSize: isMobile ? '0.88rem' : '0.7rem', cursor: 'move', minHeight: isMobile ? 44 : 'auto' }}
             draggable onDragStart={e => { e.stopPropagation(); setDraggedTask({ day, task }); }}>
-            <button onClick={e => { e.stopPropagation(); setWeeklyTasks(prev => ({ ...prev, [day]: prev[day].map(t => t.id === task.id ? { ...t, priority: !t.priority } : t) })); }} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', flexShrink: 0, paddingTop: '2px' }}>
+            <button onClick={e => { e.stopPropagation(); setWeeklyTasks(prev => ({ ...prev, [day]: (prev[day] || []).map(t => t.id === task.id ? { ...t, priority: !t.priority } : t) })); }} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', flexShrink: 0, paddingTop: '2px' }}>
               <Star size={isMobile ? 11 : 9} fill={task.priority ? '#7EB8F7' : 'none'} color={task.priority ? '#7EB8F7' : 'rgba(180,210,245,0.3)'} />
             </button>
-            <div onClick={e => { e.stopPropagation(); setWeeklyTasks(prev => ({ ...prev, [day]: prev[day].map(t => t.id === task.id ? { ...t, done: !t.done } : t) })); }}
+            <div onClick={e => { e.stopPropagation(); setWeeklyTasks(prev => ({ ...prev, [day]: (prev[day] || []).map(t => t.id === task.id ? { ...t, done: !t.done } : t) })); }}
               style={{ width: isMobile ? 16 : 11, height: isMobile ? 16 : 11, border: `2px solid ${C.accent}`, borderRadius: 3, display: 'flex', alignItems: 'center', justifyContent: 'center', background: task.done ? C.accent : 'transparent', cursor: 'pointer', flexShrink: 0, marginTop: '2px' }}>
               {task.done && <Check size={isMobile ? 9 : 7} color="#fff" />}
             </div>
             <span style={{ flex: 1, textDecoration: task.done ? 'line-through' : 'none', opacity: task.done ? 0.55 : 1, lineHeight: '1.3', wordBreak: 'break-word' }}>{task.text}</span>
-            <button onClick={e => { e.stopPropagation(); setWeeklyTasks(prev => ({ ...prev, [day]: prev[day].filter(t => t.id !== task.id) })); }} style={{ background: 'none', border: 'none', color: C.textMuted, cursor: 'pointer', padding: 0, flexShrink: 0 }}><Trash2 size={isMobile ? 12 : 9} /></button>
+            <button onClick={e => { e.stopPropagation(); setWeeklyTasks(prev => ({ ...prev, [day]: (prev[day] || []).filter(t => t.id !== task.id) })); }} style={{ background: 'none', border: 'none', color: C.textMuted, cursor: 'pointer', padding: 0, flexShrink: 0 }}><Trash2 size={isMobile ? 12 : 9} /></button>
           </div>
         ))}
       </div>
     );
   };
 
-  // ── MOBILE LAYOUT ──
-  const [activeSection, setActiveSection] = React.useState(0);
+  // ── MOBILE ──
   const SECTIONS = [
-    { key: 'week',  label: 'Week',       icon: '📅' },
-    { key: 'day',   label: 'Day',        icon: '✅' },
+    { key: 'week', label: 'Week', icon: '📅' },
+    { key: 'day', label: 'Day', icon: '✅' },
     { key: 'brain', label: 'Brainstorm', icon: '💡' },
-    { key: 'art',   label: 'Art',        icon: '🎨' },
-    { key: 'neuro', label: 'Neuro',      icon: '🧠' },
-    { key: 'study', label: 'Study',      icon: '📚' },
+    { key: 'art', label: 'Art', icon: '🎨' },
+    { key: 'neuro', label: 'Neuro', icon: '🧠' },
+    { key: 'study', label: 'Study', icon: '📚' },
   ];
-  const touchStartX = React.useRef(null);
-  const touchStartY = React.useRef(null);
+  const touchStartX = useRef(null);
+  const touchStartY = useRef(null);
   const onTouchStart = e => { touchStartX.current = e.touches[0].clientX; touchStartY.current = e.touches[0].clientY; };
   const onTouchEnd = e => {
     if (touchStartX.current === null) return;
@@ -532,189 +524,181 @@ const LifeDashboard = () => {
     touchStartX.current = null;
   };
 
-  const renderMobile = () => {
+  const renderMobileSection = () => {
     const allDone = Object.values(habits).every(h => h.today);
-    // eslint-disable-next-line no-unused-vars
-    const doneCount = Object.values(habits).filter(h => h.today).length;
-    // eslint-disable-next-line no-unused-vars
-    const totalTasks = Object.values(weeklyTasks).flat().length;
-    // eslint-disable-next-line no-unused-vars
-    const doneTasks = Object.values(weeklyTasks).flat().filter(t => t.done).length;
     const totalStudy = [...studyApproach, ...studyPathology, ...studyRhoton].length;
     const doneStudy = [...studyApproach, ...studyPathology, ...studyRhoton].filter(i => i.done).length;
+    const key = SECTIONS[activeSection].key;
 
-    const sectionMap = {
-      week: (
-        <div style={{ padding: '1rem' }}>
-          <div style={{ display: 'flex', gap: '0.4rem', overflowX: 'auto', paddingBottom: '0.75rem', marginBottom: '0.75rem', borderBottom: `1px solid ${C.border}` }}>
-            {weekDays.map(day => {
-              const isToday = day === todayKey;
-              const isSelected = day === selectedDay;
-              const hasTasks = (weeklyTasks[day] || []).length > 0;
-              return (
-                <button key={day} onClick={() => setSelectedDay(day)} style={{ flexShrink: 0, padding: '0.5rem 0.9rem', borderRadius: 20, fontSize: '0.85rem', fontWeight: '600', cursor: 'pointer', border: `1.5px solid ${isSelected ? C.accent : isToday ? C.accent : hasTasks ? 'rgba(74,144,217,0.5)' : 'rgba(74,144,217,0.2)'}`, background: isSelected ? C.accent : isToday ? 'rgba(74,144,217,0.2)' : 'rgba(74,144,217,0.08)', color: isSelected ? '#fff' : isToday ? C.accentLight : hasTasks ? 'rgba(232,241,252,0.85)' : 'rgba(232,241,252,0.5)', minHeight: 40 }}>
-                  {day}{isToday && !isSelected ? ' •' : ''}
-                </button>
-              );
-            })}
-          </div>
-          <div style={{ fontSize: '0.75rem', color: C.textMuted, marginBottom: '0.75rem', display: 'flex', justifyContent: 'space-between' }}>
-            <span style={{ fontWeight: '600', color: C.accentLight }}>{selectedDay}{selectedDay === todayKey ? ' — Today' : ''}</span>
-            <span>{(weeklyTasks[selectedDay] || []).filter(t => t.done).length}/{(weeklyTasks[selectedDay] || []).length} done</span>
-          </div>
-          {renderDayColumn(selectedDay)}
-        </div>
-      ),
-      day: (
-        <div style={{ padding: '1rem' }}>
-          {allDone && <div style={{ textAlign: 'center', fontSize: '1.8rem', marginBottom: '1rem' }}>🎉</div>}
-          {Object.keys(habits).map(key => (
-            <div key={key} onClick={() => toggleHabit(key)} style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.9rem 1rem', background: habits[key].today ? 'rgba(74,144,217,0.28)' : C.itemBg, borderRadius: 12, marginBottom: '0.5rem', cursor: 'pointer', borderLeft: habits[key].today ? `3px solid ${C.accent}` : '3px solid transparent', minHeight: 58 }}>
-              <span style={{ fontSize: '1.4rem' }}>{habitIcons[key]}</span>
-              <span style={{ flex: 1, fontSize: '0.95rem', textDecoration: habits[key].today ? 'line-through' : 'none', opacity: habits[key].today ? 0.65 : 1 }}>{habitLabels[key]}</span>
-              {habits[key].streak > 0 && <span style={{ background: 'linear-gradient(135deg,#4A90D9,#2E6FBB)', color: '#fff', padding: '0.25rem 0.6rem', borderRadius: 12, fontSize: '0.78rem', fontWeight: '600' }}>{habits[key].streak} 🔥</span>}
-            </div>
-          ))}
-        </div>
-      ),
-      brain: (
-        <div style={{ padding: '1rem' }}>
-          <textarea value={newBrainstorm} onChange={e => setNewBrainstorm(e.target.value)} placeholder="New idea..." style={{ width: '100%', padding: '0.85rem', background: 'rgba(0,0,0,0.35)', border: `1px solid ${C.border}`, borderRadius: 10, color: C.text, fontSize: '1rem', fontFamily: 'inherit', resize: 'none', height: 110, marginBottom: '0.65rem' }} />
-          <button onClick={addBrainstorm} style={{ width: '100%', padding: '0.8rem', background: `linear-gradient(135deg,${C.accent},#2E6FBB)`, border: 'none', borderRadius: 10, color: '#fff', fontWeight: '600', cursor: 'pointer', fontSize: '0.95rem', marginBottom: '1rem' }}>+ Add</button>
-          {brainstormEntries.map(e => renderBrainstormEntry(e, false))}
-          {brainstormHistory.length > 0 && (
-            <div style={{ marginTop: '0.75rem', borderTop: `1px solid ${C.border}`, paddingTop: '0.75rem' }}>
-              <button onClick={() => setShowHistory(!showHistory)} style={{ width: '100%', padding: '0.7rem', background: 'rgba(74,144,217,0.1)', border: `1px solid ${C.border}`, borderRadius: 8, color: C.accentLight, cursor: 'pointer', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}>
-                {showHistory ? '▼' : '▶'} History ({brainstormHistory.length})
+    if (key === 'week') return (
+      <div style={{ padding: '1rem' }}>
+        <div style={{ display: 'flex', gap: '0.4rem', overflowX: 'auto', paddingBottom: '0.75rem', marginBottom: '0.75rem', borderBottom: `1px solid ${C.border}` }}>
+          {weekDays.map(day => {
+            const isToday = day === todayKey, isSelected = day === selectedDay;
+            const hasTasks = (weeklyTasks[day] || []).length > 0;
+            return (
+              <button key={day} onClick={() => setSelectedDay(day)} style={{ flexShrink: 0, padding: '0.5rem 0.9rem', borderRadius: 20, fontSize: '0.85rem', fontWeight: '600', cursor: 'pointer', border: `1.5px solid ${isSelected ? C.accent : isToday ? C.accent : hasTasks ? 'rgba(74,144,217,0.5)' : 'rgba(74,144,217,0.2)'}`, background: isSelected ? C.accent : isToday ? 'rgba(74,144,217,0.2)' : 'rgba(74,144,217,0.08)', color: isSelected ? '#fff' : isToday ? C.accentLight : hasTasks ? 'rgba(232,241,252,0.85)' : 'rgba(232,241,252,0.5)', minHeight: 40 }}>
+                {day}{isToday && !isSelected ? ' •' : ''}
               </button>
-              {showHistory && <div style={{ marginTop: '0.75rem' }}>{brainstormHistory.map(e => renderBrainstormEntry(e, true))}</div>}
-            </div>
-          )}
+            );
+          })}
         </div>
-      ),
-      art: (
-        <div style={{ padding: '1rem' }}>
-          {dailyContent && (
-            <div style={{ background: C.itemBg, border: `1px solid ${C.border}`, borderRadius: 14, padding: '1.25rem' }}>
-              <h3 style={{ fontFamily: '"Crimson Pro", serif', fontSize: '1.2rem', fontWeight: '600', marginBottom: '0.3rem', color: C.accentLight }}>{dailyContent.name}</h3>
-              <div style={{ fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '1px', color: C.textMuted, marginBottom: '0.85rem' }}>{dailyContent.type} · {dailyContent.contentType}</div>
-              <p style={{ fontSize: '1rem', fontStyle: 'italic', lineHeight: '1.65', color: 'rgba(232,241,252,0.9)', marginBottom: '0.85rem' }}>"{dailyContent.content}"</p>
-              <p style={{ fontSize: '0.85rem', lineHeight: '1.6', color: C.textMuted }}>{dailyContent.context}</p>
-            </div>
-          )}
+        <div style={{ fontSize: '0.75rem', color: C.textMuted, marginBottom: '0.75rem', display: 'flex', justifyContent: 'space-between' }}>
+          <span style={{ fontWeight: '600', color: C.accentLight }}>{selectedDay}{selectedDay === todayKey ? ' — Today' : ''}</span>
+          <span>{(weeklyTasks[selectedDay] || []).filter(t => t.done).length}/{(weeklyTasks[selectedDay] || []).length} done</span>
         </div>
-      ),
-      neuro: (
-        <div style={{ padding: '1rem' }}>
-          {dailyArticle && (
-            <>
-              <a href={dailyArticle.url} target="_blank" rel="noopener noreferrer" style={{ display: 'block', padding: '1rem', background: C.itemBg, borderLeft: `3px solid ${C.accent}`, borderRadius: 12, marginBottom: '0.75rem', textDecoration: 'none', color: 'inherit' }}>
-                <div style={{ fontSize: '0.95rem', fontWeight: '500', lineHeight: '1.45', color: C.text, marginBottom: '0.4rem' }}>{dailyArticle.title}</div>
-                <div style={{ fontSize: '0.75rem', color: C.textMuted, fontStyle: 'italic' }}>{dailyArticle.journal}</div>
-              </a>
-              <button onClick={markArticleRead} style={{ width: '100%', padding: '0.8rem', background: 'rgba(74,144,217,0.1)', border: `1px solid ${C.border}`, borderRadius: 10, color: C.accentLight, cursor: 'pointer', fontSize: '0.9rem', marginBottom: '0.75rem' }}>Mark as Read ✓</button>
-              {articleHistory.length > 0 && (
-                <>
-                  <button onClick={() => setShowArticleHistory(!showArticleHistory)} style={{ width: '100%', padding: '0.7rem', background: 'rgba(74,144,217,0.1)', border: `1px solid ${C.border}`, borderRadius: 8, color: C.accentLight, cursor: 'pointer', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', marginBottom: showArticleHistory ? '0.6rem' : 0 }}>
-                    {showArticleHistory ? '▼' : '▶'} History ({articleHistory.length})
-                  </button>
-                  {showArticleHistory && articleHistory.map((article, i) => (
-                    <div key={i} style={{ background: C.itemBg, borderLeft: `2px solid ${C.border}`, borderRadius: 8, padding: '0.75rem', marginBottom: '0.4rem' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: '0.82rem', fontWeight: '500', lineHeight: '1.3', marginBottom: '0.2rem' }}>{article.title}</div>
-                          <div style={{ fontSize: '0.68rem', color: C.textFaint }}>{new Date(article.readDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>
-                        </div>
-                        <button onClick={() => setArticleHistory(prev => prev.filter((_, j) => j !== i))} style={{ background: 'none', border: 'none', color: C.textFaint, cursor: 'pointer' }}><Trash2 size={12} /></button>
-                      </div>
-                    </div>
-                  ))}
-                </>
-              )}
-            </>
-          )}
-        </div>
-      ),
-      study: (
-        <div style={{ padding: '1rem' }}>
-          <div style={{ fontSize: '0.72rem', color: C.textMuted, marginBottom: '0.75rem', textAlign: 'right' }}>{doneStudy}/{totalStudy} complete</div>
-          {renderStudyList(studyApproach, setStudyApproach, 'Approach')}
-          <div style={{ height: '1px', background: C.border, margin: '0.75rem 0' }} />
-          {renderStudyList(studyPathology, setStudyPathology, 'Pathology')}
-          <div style={{ height: '1px', background: C.border, margin: '0.75rem 0' }} />
-          {renderStudyList(studyRhoton, setStudyRhoton, 'Rhoton')}
-          <div style={{ marginTop: '1.5rem', display: 'flex', gap: '0.5rem' }}>
-            <button onClick={exportData} style={{ flex: 1, padding: '0.7rem', background: 'rgba(74,144,217,0.1)', border: `1px solid ${C.border}`, borderRadius: 8, color: C.accentLight, cursor: 'pointer', fontSize: '0.85rem' }}>Export</button>
-            <button onClick={importData} style={{ flex: 1, padding: '0.7rem', background: 'rgba(74,144,217,0.1)', border: `1px solid ${C.border}`, borderRadius: 8, color: C.accentLight, cursor: 'pointer', fontSize: '0.85rem' }}>Import</button>
+        {renderDayColumn(selectedDay)}
+      </div>
+    );
+
+    if (key === 'day') return (
+      <div style={{ padding: '1rem' }}>
+        {allDone && <div style={{ textAlign: 'center', fontSize: '1.8rem', marginBottom: '1rem' }}>🎉</div>}
+        {Object.keys(habits).map(k => (
+          <div key={k} onClick={() => toggleHabit(k)} style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.9rem 1rem', background: habits[k].today ? 'rgba(74,144,217,0.28)' : C.itemBg, borderRadius: 12, marginBottom: '0.5rem', cursor: 'pointer', borderLeft: habits[k].today ? `3px solid ${C.accent}` : '3px solid transparent', minHeight: 58 }}>
+            <span style={{ fontSize: '1.4rem' }}>{habitIcons[k]}</span>
+            <span style={{ flex: 1, fontSize: '0.95rem', textDecoration: habits[k].today ? 'line-through' : 'none', opacity: habits[k].today ? 0.65 : 1 }}>{habitLabels[k]}</span>
+            {habits[k].streak > 0 && <span style={{ background: 'linear-gradient(135deg,#4A90D9,#2E6FBB)', color: '#fff', padding: '0.25rem 0.6rem', borderRadius: 12, fontSize: '0.78rem', fontWeight: '600' }}>{habits[k].streak} 🔥</span>}
           </div>
-        </div>
-      ),
-    };
+        ))}
+      </div>
+    );
 
-    return (
-      <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: `linear-gradient(160deg, ${C.bg1} 0%, #0A1628 100%)`, color: C.text, fontFamily: '"Work Sans", sans-serif', overflow: 'hidden' }}>
-        <style>{`
-          @import url('https://fonts.googleapis.com/css2?family=Crimson+Pro:wght@400;600;700&family=Work+Sans:wght@300;400;500;600&display=swap');
-          * { box-sizing: border-box; }
-          input, textarea, button { font-family: 'Work Sans', sans-serif; }
-          ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-thumb { background: rgba(74,144,217,0.4); border-radius: 4px; }
-          .mob-nav-bar { padding-bottom: max(env(safe-area-inset-bottom, 8px), 8px) !important; }
-        `}</style>
-
-        {/* Header */}
-        <div style={{ flexShrink: 0, padding: '0.85rem 1rem 0.55rem', background: 'rgba(10,22,40,0.97)', borderBottom: `1px solid ${C.border}`, backdropFilter: 'blur(12px)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
-            <div>
-              <div style={{ fontFamily: '"Crimson Pro", serif', fontSize: '1rem', fontWeight: '600', color: C.accentLight }}>
-                {today.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
-              </div>
-              <div style={{ fontSize: '0.6rem', color: C.textMuted, marginTop: '0.1rem' }}>Surgery: {weeksSinceSurgery}w {remainderDays}d ago</div>
-            </div>
-            <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-              {countdowns.map(c => (
-                <div key={c.label} style={{ background: 'rgba(74,144,217,0.12)', border: `1px solid ${C.border}`, borderRadius: 7, padding: '0.2rem 0.45rem', textAlign: 'center' }}>
-                  <div style={{ fontSize: '0.48rem', textTransform: 'uppercase', color: C.textMuted }}>{c.label}</div>
-                  <div style={{ fontSize: '0.72rem', fontWeight: '700', color: C.accentLight }}>{c.days}d</div>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ fontSize: '0.68rem', fontFamily: '"Crimson Pro", serif', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '2px', color: C.accentLight, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-              {SECTIONS[activeSection].icon} {SECTIONS[activeSection].label}
-              {syncStatus === 'saving' && <span style={{ fontSize: '0.55rem', color: C.textFaint }}>syncing…</span>}
-              {syncStatus === 'saved' && <span style={{ fontSize: '0.55rem', color: '#5cb85c' }}>✓ synced</span>}
-              {syncStatus.startsWith('error') && <span style={{ fontSize: '0.55rem', color: '#d9534f' }}>⚠ {syncStatus}</span>}
-            </div>
-            <div style={{ display: 'flex', gap: '0.4rem' }}>
-              <button onClick={exportData} style={{ padding: '0.25rem 0.55rem', background: 'rgba(74,144,217,0.15)', border: `1px solid ${C.border}`, borderRadius: 6, color: C.textMuted, cursor: 'pointer', fontSize: '0.6rem' }}>Export</button>
-              <button onClick={importData} style={{ padding: '0.25rem 0.55rem', background: 'rgba(74,144,217,0.15)', border: `1px solid ${C.border}`, borderRadius: 6, color: C.textMuted, cursor: 'pointer', fontSize: '0.6rem' }}>Import</button>
-            </div>
-          </div>
-        </div>
-
-        {/* Scrollable content — swipe to change section */}
-        <div onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}
-          style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', WebkitOverflowScrolling: 'touch' }}>
-          {sectionMap[SECTIONS[activeSection].key]}
-          <div style={{ height: '1rem' }} />
-        </div>
-
-        {/* Bottom tab bar */}
-        <div className="mob-nav-bar" style={{ flexShrink: 0, display: 'flex', borderTop: `1px solid ${C.border}`, background: 'rgba(10,22,40,0.97)', backdropFilter: 'blur(12px)' }}>
-          {SECTIONS.map((sec, i) => (
-            <button key={sec.key} onClick={() => setActiveSection(i)}
-              style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0.55rem 0.1rem', background: 'none', border: 'none', cursor: 'pointer', borderTop: i === activeSection ? `2px solid ${C.accent}` : '2px solid transparent' }}>
-              <span style={{ fontSize: '1.15rem' }}>{sec.icon}</span>
-              <span style={{ fontSize: '0.5rem', color: i === activeSection ? C.accentLight : C.textFaint, fontWeight: i === activeSection ? '600' : '400', textTransform: 'uppercase', letterSpacing: '0.3px', marginTop: '0.1rem' }}>{sec.label}</span>
+    if (key === 'brain') return (
+      <div style={{ padding: '1rem' }}>
+        <textarea value={newBrainstorm} onChange={e => setNewBrainstorm(e.target.value)} placeholder="New idea..." style={{ width: '100%', padding: '0.85rem', background: 'rgba(0,0,0,0.35)', border: `1px solid ${C.border}`, borderRadius: 10, color: C.text, fontSize: '1rem', fontFamily: 'inherit', resize: 'none', height: 110, marginBottom: '0.65rem' }} />
+        <button onClick={addBrainstorm} style={{ width: '100%', padding: '0.8rem', background: `linear-gradient(135deg,${C.accent},#2E6FBB)`, border: 'none', borderRadius: 10, color: '#fff', fontWeight: '600', cursor: 'pointer', fontSize: '0.95rem', marginBottom: '1rem' }}>+ Add</button>
+        {brainstormEntries.map(e => renderBrainstormEntry(e, false))}
+        {brainstormHistory.length > 0 && (
+          <div style={{ marginTop: '0.75rem', borderTop: `1px solid ${C.border}`, paddingTop: '0.75rem' }}>
+            <button onClick={() => setShowHistory(h => !h)} style={{ width: '100%', padding: '0.7rem', background: 'rgba(74,144,217,0.1)', border: `1px solid ${C.border}`, borderRadius: 8, color: C.accentLight, cursor: 'pointer', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}>
+              {showHistory ? '▼' : '▶'} History ({brainstormHistory.length})
             </button>
-          ))}
+            {showHistory && <div style={{ marginTop: '0.75rem' }}>{brainstormHistory.map(e => renderBrainstormEntry(e, true))}</div>}
+          </div>
+        )}
+      </div>
+    );
+
+    if (key === 'art') return (
+      <div style={{ padding: '1rem' }}>
+        {dailyContent && (
+          <div style={{ background: C.itemBg, border: `1px solid ${C.border}`, borderRadius: 14, padding: '1.25rem' }}>
+            <h3 style={{ fontFamily: '"Crimson Pro", serif', fontSize: '1.2rem', fontWeight: '600', marginBottom: '0.3rem', color: C.accentLight }}>{dailyContent.name}</h3>
+            <div style={{ fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '1px', color: C.textMuted, marginBottom: '0.85rem' }}>{dailyContent.type} · {dailyContent.contentType}</div>
+            <p style={{ fontSize: '1rem', fontStyle: 'italic', lineHeight: '1.65', color: 'rgba(232,241,252,0.9)', marginBottom: '0.85rem' }}>{dailyContent.content}</p>
+            <p style={{ fontSize: '0.85rem', lineHeight: '1.6', color: C.textMuted }}>{dailyContent.context}</p>
+          </div>
+        )}
+      </div>
+    );
+
+    if (key === 'neuro') return (
+      <div style={{ padding: '1rem' }}>
+        {dailyArticle && (
+          <>
+            <a href={dailyArticle.url} target="_blank" rel="noopener noreferrer" style={{ display: 'block', padding: '1rem', background: C.itemBg, borderLeft: `3px solid ${C.accent}`, borderRadius: 12, marginBottom: '0.75rem', textDecoration: 'none', color: 'inherit' }}>
+              <div style={{ fontSize: '0.95rem', fontWeight: '500', lineHeight: '1.45', color: C.text, marginBottom: '0.4rem' }}>{dailyArticle.title}</div>
+              <div style={{ fontSize: '0.75rem', color: C.textMuted, fontStyle: 'italic' }}>{dailyArticle.journal}</div>
+            </a>
+            <button onClick={markArticleRead} style={{ width: '100%', padding: '0.8rem', background: 'rgba(74,144,217,0.1)', border: `1px solid ${C.border}`, borderRadius: 10, color: C.accentLight, cursor: 'pointer', fontSize: '0.9rem', marginBottom: '0.75rem' }}>Mark as Read ✓</button>
+            {articleHistory.length > 0 && (
+              <>
+                <button onClick={() => setShowArticleHistory(h => !h)} style={{ width: '100%', padding: '0.7rem', background: 'rgba(74,144,217,0.1)', border: `1px solid ${C.border}`, borderRadius: 8, color: C.accentLight, cursor: 'pointer', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', marginBottom: showArticleHistory ? '0.6rem' : 0 }}>
+                  {showArticleHistory ? '▼' : '▶'} History ({articleHistory.length})
+                </button>
+                {showArticleHistory && articleHistory.map((article, i) => (
+                  <div key={i} style={{ background: C.itemBg, borderLeft: `2px solid ${C.border}`, borderRadius: 8, padding: '0.75rem', marginBottom: '0.4rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: '0.82rem', fontWeight: '500', lineHeight: '1.3', marginBottom: '0.2rem' }}>{article.title}</div>
+                        <div style={{ fontSize: '0.68rem', color: C.textFaint }}>{new Date(article.readDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>
+                      </div>
+                      <button onClick={() => setArticleHistory(prev => prev.filter((_, j) => j !== i))} style={{ background: 'none', border: 'none', color: C.textFaint, cursor: 'pointer' }}><Trash2 size={12} /></button>
+                    </div>
+                  </div>
+                ))}
+              </>
+            )}
+          </>
+        )}
+      </div>
+    );
+
+    if (key === 'study') return (
+      <div style={{ padding: '1rem' }}>
+        <div style={{ fontSize: '0.72rem', color: C.textMuted, marginBottom: '0.75rem', textAlign: 'right' }}>{doneStudy}/{totalStudy} complete</div>
+        {renderStudyList(studyApproach, setStudyApproach, 'Approach')}
+        <div style={{ height: '1px', background: C.border, margin: '0.75rem 0' }} />
+        {renderStudyList(studyPathology, setStudyPathology, 'Pathology')}
+        <div style={{ height: '1px', background: C.border, margin: '0.75rem 0' }} />
+        {renderStudyList(studyRhoton, setStudyRhoton, 'Rhoton')}
+        <div style={{ marginTop: '1.5rem', display: 'flex', gap: '0.5rem' }}>
+          <button onClick={exportData} style={{ flex: 1, padding: '0.7rem', background: 'rgba(74,144,217,0.1)', border: `1px solid ${C.border}`, borderRadius: 8, color: C.accentLight, cursor: 'pointer', fontSize: '0.85rem' }}>Export</button>
+          <button onClick={importData} style={{ flex: 1, padding: '0.7rem', background: 'rgba(74,144,217,0.1)', border: `1px solid ${C.border}`, borderRadius: 8, color: C.accentLight, cursor: 'pointer', fontSize: '0.85rem' }}>Import</button>
         </div>
       </div>
     );
+
+    return null;
   };
 
-  // ── DESKTOP LAYOUT ──
+  const renderMobile = () => (
+    <div style={{ height: '100dvh', display: 'flex', flexDirection: 'column', background: `linear-gradient(160deg, ${C.bg1} 0%, #0A1628 100%)`, color: C.text, fontFamily: '"Work Sans", sans-serif', overflow: 'hidden' }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Crimson+Pro:wght@400;600;700&family=Work+Sans:wght@300;400;500;600&display=swap');
+        * { box-sizing: border-box; }
+        input, textarea, button { font-family: 'Work Sans', sans-serif; }
+        ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-thumb { background: rgba(74,144,217,0.4); border-radius: 4px; }
+        .mob-nav { padding-bottom: max(env(safe-area-inset-bottom, 16px), 16px) !important; }
+      `}</style>
+      <div style={{ flexShrink: 0, padding: '0.85rem 1rem 0.55rem', background: 'rgba(10,22,40,0.97)', borderBottom: `1px solid ${C.border}` }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+          <div>
+            <div style={{ fontFamily: '"Crimson Pro", serif', fontSize: '1rem', fontWeight: '600', color: C.accentLight }}>
+              {today.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
+            </div>
+            <div style={{ fontSize: '0.6rem', color: C.textMuted, marginTop: '0.1rem' }}>Surgery: {weeksSinceSurgery}w {remainderDays}d ago</div>
+          </div>
+          <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            {countdowns.map(c => (
+              <div key={c.label} style={{ background: 'rgba(74,144,217,0.12)', border: `1px solid ${C.border}`, borderRadius: 7, padding: '0.2rem 0.45rem', textAlign: 'center' }}>
+                <div style={{ fontSize: '0.48rem', textTransform: 'uppercase', color: C.textMuted }}>{c.label}</div>
+                <div style={{ fontSize: '0.72rem', fontWeight: '700', color: C.accentLight }}>{c.days}d</div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ fontSize: '0.68rem', fontFamily: '"Crimson Pro", serif', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '2px', color: C.accentLight, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            {SECTIONS[activeSection].icon} {SECTIONS[activeSection].label}
+            {syncStatus === 'saving' && <span style={{ fontSize: '0.55rem', color: C.textFaint, fontFamily: 'sans-serif', fontWeight: 'normal', textTransform: 'none', letterSpacing: 0 }}>syncing…</span>}
+            {syncStatus === 'saved' && <span style={{ fontSize: '0.55rem', color: '#5cb85c', fontFamily: 'sans-serif', fontWeight: 'normal', textTransform: 'none', letterSpacing: 0 }}>✓ synced</span>}
+            {syncStatus === 'error' && <span style={{ fontSize: '0.55rem', color: '#d9534f', fontFamily: 'sans-serif', fontWeight: 'normal', textTransform: 'none', letterSpacing: 0 }}>⚠ offline</span>}
+          </div>
+          <div style={{ display: 'flex', gap: '0.4rem' }}>
+            <button onClick={exportData} style={{ padding: '0.25rem 0.55rem', background: 'rgba(74,144,217,0.15)', border: `1px solid ${C.border}`, borderRadius: 6, color: C.textMuted, cursor: 'pointer', fontSize: '0.6rem' }}>Export</button>
+            <button onClick={importData} style={{ padding: '0.25rem 0.55rem', background: 'rgba(74,144,217,0.15)', border: `1px solid ${C.border}`, borderRadius: 6, color: C.textMuted, cursor: 'pointer', fontSize: '0.6rem' }}>Import</button>
+          </div>
+        </div>
+      </div>
+      <div onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}
+        style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', WebkitOverflowScrolling: 'touch' }}>
+        {renderMobileSection()}
+        <div style={{ height: '1.5rem' }} />
+      </div>
+      <div className="mob-nav" style={{ flexShrink: 0, display: 'flex', borderTop: `1px solid ${C.border}`, background: 'rgba(10,22,40,0.97)' }}>
+        {SECTIONS.map((sec, i) => (
+          <button key={sec.key} onClick={() => setActiveSection(i)}
+            style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0.55rem 0.1rem', background: 'none', border: 'none', cursor: 'pointer', borderTop: i === activeSection ? `2px solid ${C.accent}` : '2px solid transparent' }}>
+            <span style={{ fontSize: '1.15rem' }}>{sec.icon}</span>
+            <span style={{ fontSize: '0.5rem', color: i === activeSection ? C.accentLight : C.textFaint, fontWeight: i === activeSection ? '600' : '400', textTransform: 'uppercase', letterSpacing: '0.3px', marginTop: '0.1rem' }}>{sec.label}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+
   const renderDesktop = () => (
     <div style={{ width: '100vw', height: '100vh', background: `linear-gradient(135deg, ${C.bg1} 0%, #0A1628 100%)`, color: C.text, fontFamily: '"Work Sans", sans-serif', padding: '1.5rem', overflow: 'auto', boxSizing: 'border-box' }}>
       <style>{`
@@ -724,7 +708,6 @@ const LifeDashboard = () => {
         .section-title { font-family: 'Crimson Pro', serif; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 2px; color: ${C.accentLight}; margin-bottom: 0.75rem; flex-shrink: 0; }
         .section-content { flex: 1; overflow-y: auto; overflow-x: hidden; }
         .section-content::-webkit-scrollbar { width: 5px; }
-        .section-content::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); border-radius: 10px; }
         .section-content::-webkit-scrollbar-thumb { background: rgba(74,144,217,0.4); border-radius: 10px; }
         .habit-item { display: flex; align-items: center; gap: 0.6rem; padding: 0.6rem; background: ${C.itemBg}; border-radius: 6px; margin-bottom: 0.4rem; cursor: pointer; transition: all 0.2s ease; min-height: 44px; }
         .habit-item:hover { background: ${C.itemBgHover}; transform: translateX(3px); }
@@ -743,9 +726,7 @@ const LifeDashboard = () => {
         .util-btn { width: 100%; background: ${C.itemBg}; border: 1px solid ${C.border}; border-radius: 5px; padding: 0.4rem; color: ${C.accentLight}; cursor: pointer; font-size: 0.6rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; transition: background 0.2s; }
         .util-btn:hover { background: ${C.itemBgHover}; }
       `}</style>
-
       <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
-        {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'stretch', marginBottom: '1rem', flexShrink: 0, gap: '1rem' }}>
           <div style={{ background: C.cardBg, padding: '0.75rem 1rem', borderRadius: 8, border: `1px solid ${C.border}`, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
             <div style={{ fontSize: '0.6rem', textTransform: 'uppercase', letterSpacing: '1px', color: C.textMuted, marginBottom: '0.15rem' }}>Since Surgery</div>
@@ -762,17 +743,14 @@ const LifeDashboard = () => {
               </React.Fragment>
             ))}
           </div>
-          <div style={{ background: C.cardBg, padding: '0.75rem 1rem', borderRadius: 8, border: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <div style={{ fontSize: '0.75rem', color: C.textMuted, whiteSpace: 'nowrap' }}>{today.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</div>
+          <div style={{ background: C.cardBg, padding: '0.75rem 1rem', borderRadius: 8, border: `1px solid ${C.border}`, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'center' }}>
+            <div style={{ fontSize: '0.75rem', color: C.textMuted }}>{today.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</div>
             <div style={{ fontSize: '0.6rem', marginTop: '0.2rem', color: syncStatus === 'saved' ? '#5cb85c' : syncStatus === 'error' ? '#d9534f' : C.textFaint }}>
               {syncStatus === 'saving' ? 'syncing…' : syncStatus === 'saved' ? '✓ synced' : syncStatus === 'error' ? '⚠ offline' : ''}
             </div>
           </div>
         </div>
-
-        {/* Grid */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', flex: 1, minHeight: 0 }}>
-          {/* Week — full width */}
           <div style={{ height: '50%', flexShrink: 0 }}>
             <div className="section-card" style={{ background: 'rgba(0,0,0,0.35)' }}>
               <div className="section-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -799,7 +777,7 @@ const LifeDashboard = () => {
                       onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); handleDrop(day); }}>
                       {!showTaskInput[day] ? (
                         <button onClick={() => setShowTaskInput(prev => ({ ...prev, [day]: true }))} style={{ width: '100%', padding: '0.3rem', background: 'rgba(74,144,217,0.25)', border: `1px solid ${C.border}`, borderRadius: 4, color: C.accentLight, cursor: 'pointer', fontSize: '0.65rem', marginBottom: '0.4rem', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                          <Plus size={10} />
+                          <Plus size={10} color={C.accentLight} />
                         </button>
                       ) : (
                         <div style={{ marginBottom: '0.4rem', flexShrink: 0 }}>
@@ -814,14 +792,14 @@ const LifeDashboard = () => {
                         {(weeklyTasks[day] || []).sort((a, b) => { if (a.done !== b.done) return a.done ? 1 : -1; if (a.priority !== b.priority) return a.priority ? -1 : 1; return 0; }).map(task => (
                           <div key={task.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.25rem', padding: '0.4rem', background: C.itemBg, borderRadius: 4, marginBottom: '0.25rem', fontSize: '0.7rem', cursor: 'move' }}
                             draggable onDragStart={e => { e.stopPropagation(); setDraggedTask({ day, task }); }}>
-                            <button onClick={e => { e.stopPropagation(); setWeeklyTasks(prev => ({ ...prev, [day]: prev[day].map(t => t.id === task.id ? { ...t, priority: !t.priority } : t) })); }} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', flexShrink: 0 }}>
+                            <button onClick={e => { e.stopPropagation(); setWeeklyTasks(prev => ({ ...prev, [day]: (prev[day] || []).map(t => t.id === task.id ? { ...t, priority: !t.priority } : t) })); }} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', flexShrink: 0 }}>
                               <Star size={9} fill={task.priority ? '#7EB8F7' : 'none'} color={task.priority ? '#7EB8F7' : 'rgba(180,210,245,0.3)'} />
                             </button>
-                            <div onClick={e => { e.stopPropagation(); setWeeklyTasks(prev => ({ ...prev, [day]: prev[day].map(t => t.id === task.id ? { ...t, done: !t.done } : t) })); }} style={{ width: 11, height: 11, border: `2px solid ${C.accent}`, borderRadius: '3px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: task.done ? C.accent : 'transparent', cursor: 'pointer', flexShrink: 0 }}>
+                            <div onClick={e => { e.stopPropagation(); setWeeklyTasks(prev => ({ ...prev, [day]: (prev[day] || []).map(t => t.id === task.id ? { ...t, done: !t.done } : t) })); }} style={{ width: 11, height: 11, border: `2px solid ${C.accent}`, borderRadius: '3px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: task.done ? C.accent : 'transparent', cursor: 'pointer', flexShrink: 0 }}>
                               {task.done && <Check size={7} color="#fff" />}
                             </div>
                             <span style={{ flex: 1, textDecoration: task.done ? 'line-through' : 'none', opacity: task.done ? 0.55 : 1, lineHeight: '1.2', wordBreak: 'break-word' }}>{task.text}</span>
-                            <button onClick={e => { e.stopPropagation(); setWeeklyTasks(prev => ({ ...prev, [day]: prev[day].filter(t => t.id !== task.id) })); }} style={{ background: 'none', border: 'none', color: C.textMuted, cursor: 'pointer', padding: 0, flexShrink: 0 }}><Trash2 size={9} /></button>
+                            <button onClick={e => { e.stopPropagation(); setWeeklyTasks(prev => ({ ...prev, [day]: (prev[day] || []).filter(t => t.id !== task.id) })); }} style={{ background: 'none', border: 'none', color: C.textMuted, cursor: 'pointer', padding: 0, flexShrink: 0 }}><Trash2 size={9} /></button>
                           </div>
                         ))}
                       </div>
@@ -831,10 +809,7 @@ const LifeDashboard = () => {
               </div>
             </div>
           </div>
-
-          {/* Three columns */}
           <div style={{ display: 'grid', gridTemplateColumns: '240px 1fr 280px', gap: '1rem', flex: 1, minHeight: '600px' }}>
-            {/* Left */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', minHeight: 0 }}>
               <div className="section-card" style={{ height: '385px', flexShrink: 0, background: Object.values(habits).every(h => h.today) ? 'rgba(74,144,217,0.15)' : 'rgba(0,0,0,0.35)', border: Object.values(habits).every(h => h.today) ? `2px solid ${C.accentLight}` : 'none', transition: 'all 0.3s' }}>
                 <div className="section-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -861,7 +836,7 @@ const LifeDashboard = () => {
               <button onClick={exportData} className="util-btn">Export Backup</button>
               <button onClick={importData} className="util-btn" style={{ marginTop: '0.3rem' }}>Import Backup</button>
               <div style={{ marginTop: '0.3rem' }}>
-                <button onClick={() => setShowStatsPanel(!showStatsPanel)} className="util-btn" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.3rem' }}>
+                <button onClick={() => setShowStatsPanel(s => !s)} className="util-btn" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.3rem' }}>
                   {showStatsPanel ? '▼' : '▶'} Quick Stats
                 </button>
                 {showStatsPanel && (
@@ -880,8 +855,6 @@ const LifeDashboard = () => {
                 )}
               </div>
             </div>
-
-            {/* Middle */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', minHeight: 0 }}>
               <div className="section-card" style={{ minHeight: '200px' }}>
                 <div className="section-title">NEUROSURGERY</div>
@@ -895,7 +868,7 @@ const LifeDashboard = () => {
                       <button onClick={e => { e.preventDefault(); markArticleRead(); }} style={{ width: '100%', marginTop: '0.5rem', padding: '0.4rem', background: C.itemBg, border: `1px solid ${C.border}`, borderRadius: 5, color: C.accentLight, cursor: 'pointer', fontSize: '0.7rem', fontWeight: '500' }}>Mark as Read</button>
                       {articleHistory.length > 0 && (
                         <div style={{ marginTop: '0.6rem', borderTop: `1px solid ${C.border}`, paddingTop: '0.6rem' }}>
-                          <button onClick={() => setShowArticleHistory(!showArticleHistory)} style={{ width: '100%', padding: '0.4rem', background: C.cardBg, border: `1px solid ${C.border}`, borderRadius: 5, color: C.accentLight, cursor: 'pointer', fontSize: '0.65rem', fontWeight: '500', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.3rem' }}>
+                          <button onClick={() => setShowArticleHistory(h => !h)} style={{ width: '100%', padding: '0.4rem', background: C.cardBg, border: `1px solid ${C.border}`, borderRadius: 5, color: C.accentLight, cursor: 'pointer', fontSize: '0.65rem', fontWeight: '500', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.3rem' }}>
                             {showArticleHistory ? <ChevronDown size={10} /> : <ChevronRight size={10} />} History ({articleHistory.length})
                           </button>
                           {showArticleHistory && (
@@ -939,7 +912,7 @@ const LifeDashboard = () => {
                     <div style={{ background: C.itemBg, border: `1px solid ${C.border}`, borderRadius: 8, padding: '0.85rem' }}>
                       <h3 style={{ fontFamily: '"Crimson Pro", serif', fontSize: '0.95rem', fontWeight: '600', marginBottom: '0.3rem', color: C.accentLight }}>{dailyContent.name}</h3>
                       <div style={{ fontSize: '0.6rem', textTransform: 'uppercase', letterSpacing: '1px', color: C.textMuted, marginBottom: '0.6rem' }}>{dailyContent.type} • {dailyContent.contentType}</div>
-                      <p style={{ fontSize: '0.8rem', fontStyle: 'italic', lineHeight: '1.4', color: 'rgba(232,241,252,0.9)', marginBottom: '0.6rem' }}>"{dailyContent.content}"</p>
+                      <p style={{ fontSize: '0.8rem', fontStyle: 'italic', lineHeight: '1.4', color: 'rgba(232,241,252,0.9)', marginBottom: '0.6rem' }}>{dailyContent.content}</p>
                       <p style={{ fontSize: '0.7rem', lineHeight: '1.4', color: C.textMuted }}>{dailyContent.context}</p>
                     </div>
                   )}
@@ -949,10 +922,10 @@ const LifeDashboard = () => {
                 <div className="section-title">BRAINSTORM</div>
                 <div className="section-content">
                   <textarea className="textarea-field" placeholder="New idea..." value={newBrainstorm} onChange={e => setNewBrainstorm(e.target.value)} />
-                  <button className="add-button" onClick={addBrainstorm}><Plus size={13} />Add</button>
+                  <button className="add-button" onClick={addBrainstorm}><Plus size={13} color="#fff" />Add</button>
                   {brainstormEntries.length > 0 && <div style={{ marginTop: '0.8rem' }}>{brainstormEntries.map(e => renderBrainstormEntry(e, false))}</div>}
                   <div style={{ marginTop: '0.6rem', borderTop: `1px solid ${C.border}`, paddingTop: '0.6rem' }}>
-                    <button onClick={() => setShowHistory(!showHistory)} disabled={brainstormHistory.length === 0} style={{ width: '100%', padding: '0.5rem', background: C.cardBg, border: `1px solid ${C.border}`, borderRadius: 5, color: C.accentLight, cursor: brainstormHistory.length > 0 ? 'pointer' : 'default', fontSize: '0.7rem', fontWeight: '500', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.3rem' }}>
+                    <button onClick={() => setShowHistory(h => !h)} disabled={brainstormHistory.length === 0} style={{ width: '100%', padding: '0.5rem', background: C.cardBg, border: `1px solid ${C.border}`, borderRadius: 5, color: C.accentLight, cursor: brainstormHistory.length > 0 ? 'pointer' : 'default', fontSize: '0.7rem', fontWeight: '500', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.3rem' }}>
                       {showHistory ? <ChevronDown size={12} /> : <ChevronRight size={12} />} History ({brainstormHistory.length})
                     </button>
                     {showHistory && brainstormHistory.length > 0 && <div style={{ marginTop: '0.6rem', maxHeight: '250px', overflowY: 'auto' }}>{brainstormHistory.map(e => renderBrainstormEntry(e, true))}</div>}
@@ -960,8 +933,6 @@ const LifeDashboard = () => {
                 </div>
               </div>
             </div>
-
-            {/* Right */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', minHeight: 0 }}>
               <div className="section-card" style={{ minHeight: '250px', background: 'rgba(0,0,0,0.35)' }}>
                 <div className="section-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -976,7 +947,7 @@ const LifeDashboard = () => {
                 <div className="section-content">
                   <div style={{ marginBottom: '0.6rem', display: 'flex', gap: '0.4rem' }}>
                     <input className="input-field" type="text" placeholder="New goal..." value={newGoalTitle} onChange={e => setNewGoalTitle(e.target.value)} onKeyPress={e => e.key === 'Enter' && addGoal()} style={{ flex: 1, fontSize: '0.75rem', padding: '0.5rem' }} />
-                    <button className="add-button" onClick={addGoal} style={{ marginTop: 0, padding: '0.5rem' }}><Plus size={13} /></button>
+                    <button className="add-button" onClick={addGoal} style={{ marginTop: 0, padding: '0.5rem' }}><Plus size={13} color="#fff" /></button>
                   </div>
                   {monthlyGoals.sort((a, b) => {
                     const warn = g => { const ds = g.dateAdded ? Math.floor((Date.now()-g.dateAdded)/864e5) : 0; const dd = g.dueDate ? Math.ceil((new Date(g.dueDate)-new Date())/864e5) : null; return (dd!==null&&dd<=5&&dd>=0&&!g.done)||(g.dueDate==null&&ds>14&&!g.done); };
@@ -1025,7 +996,7 @@ const LifeDashboard = () => {
                 </div>
                 <div className="section-content">
                   {!showNewProjectInput ? (
-                    <button className="add-button" onClick={() => setShowNewProjectInput(true)} style={{ width: '100%', marginBottom: '0.6rem', marginTop: 0, justifyContent: 'center' }}><Plus size={13} /> Add Project</button>
+                    <button className="add-button" onClick={() => setShowNewProjectInput(true)} style={{ width: '100%', marginBottom: '0.6rem', marginTop: 0, justifyContent: 'center' }}><Plus size={13} color="#fff" /> Add Project</button>
                   ) : (
                     <div style={{ marginBottom: '0.6rem' }}>
                       <input type="text" value={newProjectTitle} onChange={e => setNewProjectTitle(e.target.value)} onKeyPress={e => { if (e.key === 'Enter') addResearchProject(); }} placeholder="Project title..." autoFocus className="input-field" style={{ marginBottom: '0.3rem' }} />
@@ -1048,7 +1019,7 @@ const LifeDashboard = () => {
                     </div>
                   ))}
                   <div style={{ marginTop: '0.6rem', borderTop: `1px solid ${C.border}`, paddingTop: '0.6rem' }}>
-                    <button onClick={() => setShowResearchHistory(!showResearchHistory)} disabled={researchHistory.length === 0} style={{ width: '100%', padding: '0.5rem', background: C.cardBg, border: `1px solid ${C.border}`, borderRadius: 5, color: C.accentLight, cursor: researchHistory.length > 0 ? 'pointer' : 'default', fontSize: '0.7rem', fontWeight: '500', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.3rem' }}>
+                    <button onClick={() => setShowResearchHistory(h => !h)} disabled={researchHistory.length === 0} style={{ width: '100%', padding: '0.5rem', background: C.cardBg, border: `1px solid ${C.border}`, borderRadius: 5, color: C.accentLight, cursor: researchHistory.length > 0 ? 'pointer' : 'default', fontSize: '0.7rem', fontWeight: '500', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.3rem' }}>
                       {showResearchHistory ? <ChevronDown size={12} /> : <ChevronRight size={12} />} History ({researchHistory.length})
                     </button>
                     {showResearchHistory && researchHistory.length > 0 && (
@@ -1073,8 +1044,6 @@ const LifeDashboard = () => {
           </div>
         </div>
       </div>
-
-      {/* Popups */}
       {showWeeklyResetPopup && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: C.bg2, padding: '2rem', borderRadius: 8, maxWidth: '400px', border: `2px solid ${C.accent}` }}>
@@ -1091,7 +1060,7 @@ const LifeDashboard = () => {
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: C.bg2, padding: '2rem', borderRadius: 8, maxWidth: '400px', border: `2px solid ${C.accent}` }}>
             <h3 style={{ margin: '0 0 1rem 0', color: C.accentLight, fontSize: '1.1rem' }}>New Month Started</h3>
-            <p style={{ margin: '0 0 1.5rem 0', color: C.text, fontSize: '0.9rem', lineHeight: '1.5' }}>Would you like to clear all completed monthly goals from last month?</p>
+            <p style={{ margin: '0 0 1.5rem 0', color: C.text, fontSize: '0.9rem', lineHeight: '1.5' }}>Would you like to clear all completed monthly goals?</p>
             <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
               <button onClick={() => handleMonthlyReset(false)} style={{ padding: '0.5rem 1rem', background: C.itemBg, border: `1px solid ${C.border}`, borderRadius: 5, color: C.text, cursor: 'pointer' }}>Keep Goals</button>
               <button onClick={() => handleMonthlyReset(true)} style={{ padding: '0.5rem 1rem', background: C.accent, border: 'none', borderRadius: 5, color: '#fff', cursor: 'pointer', fontWeight: '500' }}>Clear Completed</button>
